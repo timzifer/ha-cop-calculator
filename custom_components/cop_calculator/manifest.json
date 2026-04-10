@@ -1,0 +1,11 @@
+{
+  "domain": "cop_calculator",
+  "name": "COP Calculator",
+  "codeowners": ["@timzifer"],
+  "config_flow": true,
+  "documentation": "https://github.com/timzifer/ha-cop-calculator",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/timzifer/ha-cop-calculator/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

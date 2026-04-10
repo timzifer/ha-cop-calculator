@@ -1,0 +1,143 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure COP Calculator",
+        "description": "Set up energy monitoring for your heat pump. Select the sensors that measure electrical consumption and thermal production.",
+        "data": {
+          "name": "Name",
+          "electrical_entity": "Electrical energy sensor",
+          "electrical_sensor_type": "Electrical sensor type",
+          "thermal_entity": "Thermal energy sensor",
+          "thermal_sensor_type": "Thermal sensor type",
+          "averaging_period": "Averaging period"
+        },
+        "data_description": {
+          "name": "Display name for the heat pump device",
+          "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump",
+          "electrical_sensor_type": "Choose whether the sensor reports cumulative energy (kWh) or instantaneous power (kW)",
+          "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump",
+          "thermal_sensor_type": "Choose whether the sensor reports cumulative energy (kWh) or instantaneous power (kW)",
+          "averaging_period": "Time window (in minutes) for calculating the current COP. Longer periods smooth out delays between electrical input and thermal output."
+        }
+      },
+      "pricing": {
+        "title": "Electricity Pricing",
+        "description": "Optionally configure electricity pricing to calculate costs and savings.",
+        "data": {
+          "price_type": "Price mode",
+          "electricity_price": "Fixed electricity price",
+          "electricity_price_entity": "Electricity price sensor"
+        },
+        "data_description": {
+          "price_type": "Choose how electricity price is determined",
+          "electricity_price": "Fixed price per kWh in EUR (e.g. 0.30)",
+          "electricity_price_entity": "Sensor providing dynamic electricity price (e.g. from Tibber or aWATTar)"
+        }
+      }
+    },
+    "error": {
+      "same_entity": "Electrical and thermal sensors must be different entities",
+      "no_price": "Please enter an electricity price",
+      "no_price_entity": "Please select a price sensor"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure COP Calculator",
+        "description": "Update energy monitoring settings for your heat pump.",
+        "data": {
+          "name": "Name",
+          "electrical_entity": "Electrical energy sensor",
+          "electrical_sensor_type": "Electrical sensor type",
+          "thermal_entity": "Thermal energy sensor",
+          "thermal_sensor_type": "Thermal sensor type",
+          "averaging_period": "Averaging period"
+        },
+        "data_description": {
+          "name": "Display name for the heat pump device",
+          "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump",
+          "electrical_sensor_type": "Choose whether the sensor reports cumulative energy (kWh) or instantaneous power (kW)",
+          "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump",
+          "thermal_sensor_type": "Choose whether the sensor reports cumulative energy (kWh) or instantaneous power (kW)",
+          "averaging_period": "Time window (in minutes) for calculating the current COP"
+        }
+      },
+      "pricing": {
+        "title": "Electricity Pricing",
+        "description": "Update electricity pricing settings.",
+        "data": {
+          "price_type": "Price mode",
+          "electricity_price": "Fixed electricity price",
+          "electricity_price_entity": "Electricity price sensor"
+        },
+        "data_description": {
+          "price_type": "Choose how electricity price is determined",
+          "electricity_price": "Fixed price per kWh in EUR",
+          "electricity_price_entity": "Sensor providing dynamic electricity price"
+        }
+      }
+    },
+    "error": {
+      "same_entity": "Electrical and thermal sensors must be different entities",
+      "no_price": "Please enter an electricity price",
+      "no_price_entity": "Please select a price sensor"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "cop_current": {
+        "name": "COP Current"
+      },
+      "cop_daily": {
+        "name": "COP Daily"
+      },
+      "cop_weekly": {
+        "name": "COP Weekly"
+      },
+      "cop_monthly": {
+        "name": "COP Monthly"
+      },
+      "cop_yearly": {
+        "name": "SCOP (Yearly)"
+      },
+      "cop_total": {
+        "name": "COP Total"
+      },
+      "electrical_energy_daily": {
+        "name": "Electrical Energy Daily"
+      },
+      "electrical_energy_monthly": {
+        "name": "Electrical Energy Monthly"
+      },
+      "electrical_energy_yearly": {
+        "name": "Electrical Energy Yearly"
+      },
+      "thermal_energy_daily": {
+        "name": "Thermal Energy Daily"
+      },
+      "thermal_energy_monthly": {
+        "name": "Thermal Energy Monthly"
+      },
+      "thermal_energy_yearly": {
+        "name": "Thermal Energy Yearly"
+      },
+      "energy_savings_daily": {
+        "name": "Energy Savings Daily"
+      },
+      "electricity_cost_daily": {
+        "name": "Electricity Cost Daily"
+      },
+      "electricity_cost_monthly": {
+        "name": "Electricity Cost Monthly"
+      },
+      "electricity_cost_yearly": {
+        "name": "Electricity Cost Yearly"
+      },
+      "savings_cost_daily": {
+        "name": "Savings Cost Daily"
+      }
+    }
+  }
+}
