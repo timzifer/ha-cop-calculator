@@ -21,6 +21,22 @@
           "averaging_period": "Time window (in minutes) for calculating the current COP. Longer periods smooth out delays between electrical input and thermal output."
         }
       },
+      "mode": {
+        "title": "Operating Mode (Optional)",
+        "description": "Optionally configure a mode sensor to track COP separately for heating, hot water (DHW), and simultaneous operation. Leave the mode sensor empty to skip.",
+        "data": {
+          "mode_entity": "Operating mode sensor",
+          "mode_heating_states": "Heating mode state values",
+          "mode_dhw_states": "Hot water (DHW) mode state values",
+          "mode_simultaneous_states": "Simultaneous mode state values"
+        },
+        "data_description": {
+          "mode_entity": "Entity that indicates the current operating mode of your heat pump (e.g., an input_select or sensor)",
+          "mode_heating_states": "Comma-separated state values that indicate heating mode (e.g. 'Heizen, heating')",
+          "mode_dhw_states": "Comma-separated state values that indicate hot water/DHW mode (e.g. 'Warmwasser, dhw')",
+          "mode_simultaneous_states": "Comma-separated state values that indicate simultaneous heating + DHW (e.g. 'Heizen+WW, simultaneous'). Leave empty if not applicable."
+        }
+      },
       "pricing": {
         "title": "Electricity Pricing",
         "description": "Optionally configure electricity pricing to calculate costs and savings.",
@@ -39,7 +55,9 @@
     "error": {
       "same_entity": "Electrical and thermal sensors must be different entities",
       "no_price": "Please enter an electricity price",
-      "no_price_entity": "Please select a price sensor"
+      "no_price_entity": "Please select a price sensor",
+      "no_heating_states": "Please enter at least one heating mode state value",
+      "no_dhw_states": "Please enter at least one hot water mode state value"
     }
   },
   "options": {
@@ -64,6 +82,22 @@
           "averaging_period": "Time window (in minutes) for calculating the current COP"
         }
       },
+      "mode": {
+        "title": "Operating Mode (Optional)",
+        "description": "Update operating mode settings for separate COP tracking.",
+        "data": {
+          "mode_entity": "Operating mode sensor",
+          "mode_heating_states": "Heating mode state values",
+          "mode_dhw_states": "Hot water (DHW) mode state values",
+          "mode_simultaneous_states": "Simultaneous mode state values"
+        },
+        "data_description": {
+          "mode_entity": "Entity that indicates the current operating mode of your heat pump",
+          "mode_heating_states": "Comma-separated state values that indicate heating mode",
+          "mode_dhw_states": "Comma-separated state values that indicate hot water/DHW mode",
+          "mode_simultaneous_states": "Comma-separated state values that indicate simultaneous heating + DHW"
+        }
+      },
       "pricing": {
         "title": "Electricity Pricing",
         "description": "Update electricity pricing settings.",
@@ -82,7 +116,9 @@
     "error": {
       "same_entity": "Electrical and thermal sensors must be different entities",
       "no_price": "Please enter an electricity price",
-      "no_price_entity": "Please select a price sensor"
+      "no_price_entity": "Please select a price sensor",
+      "no_heating_states": "Please enter at least one heating mode state value",
+      "no_dhw_states": "Please enter at least one hot water mode state value"
     }
   },
   "entity": {
@@ -137,6 +173,114 @@
       },
       "savings_cost_daily": {
         "name": "Savings Cost Daily"
+      },
+      "heating_cop_current": {
+        "name": "Heating COP Current"
+      },
+      "heating_cop_daily": {
+        "name": "Heating COP Daily"
+      },
+      "heating_cop_weekly": {
+        "name": "Heating COP Weekly"
+      },
+      "heating_cop_monthly": {
+        "name": "Heating COP Monthly"
+      },
+      "heating_cop_yearly": {
+        "name": "Heating SCOP (Yearly)"
+      },
+      "heating_cop_total": {
+        "name": "Heating COP Total"
+      },
+      "heating_electrical_energy_daily": {
+        "name": "Heating Electrical Energy Daily"
+      },
+      "heating_electrical_energy_monthly": {
+        "name": "Heating Electrical Energy Monthly"
+      },
+      "heating_electrical_energy_yearly": {
+        "name": "Heating Electrical Energy Yearly"
+      },
+      "heating_thermal_energy_daily": {
+        "name": "Heating Thermal Energy Daily"
+      },
+      "heating_thermal_energy_monthly": {
+        "name": "Heating Thermal Energy Monthly"
+      },
+      "heating_thermal_energy_yearly": {
+        "name": "Heating Thermal Energy Yearly"
+      },
+      "dhw_cop_current": {
+        "name": "DHW COP Current"
+      },
+      "dhw_cop_daily": {
+        "name": "DHW COP Daily"
+      },
+      "dhw_cop_weekly": {
+        "name": "DHW COP Weekly"
+      },
+      "dhw_cop_monthly": {
+        "name": "DHW COP Monthly"
+      },
+      "dhw_cop_yearly": {
+        "name": "DHW SCOP (Yearly)"
+      },
+      "dhw_cop_total": {
+        "name": "DHW COP Total"
+      },
+      "dhw_electrical_energy_daily": {
+        "name": "DHW Electrical Energy Daily"
+      },
+      "dhw_electrical_energy_monthly": {
+        "name": "DHW Electrical Energy Monthly"
+      },
+      "dhw_electrical_energy_yearly": {
+        "name": "DHW Electrical Energy Yearly"
+      },
+      "dhw_thermal_energy_daily": {
+        "name": "DHW Thermal Energy Daily"
+      },
+      "dhw_thermal_energy_monthly": {
+        "name": "DHW Thermal Energy Monthly"
+      },
+      "dhw_thermal_energy_yearly": {
+        "name": "DHW Thermal Energy Yearly"
+      },
+      "simultaneous_cop_current": {
+        "name": "Simultaneous COP Current"
+      },
+      "simultaneous_cop_daily": {
+        "name": "Simultaneous COP Daily"
+      },
+      "simultaneous_cop_weekly": {
+        "name": "Simultaneous COP Weekly"
+      },
+      "simultaneous_cop_monthly": {
+        "name": "Simultaneous COP Monthly"
+      },
+      "simultaneous_cop_yearly": {
+        "name": "Simultaneous SCOP (Yearly)"
+      },
+      "simultaneous_cop_total": {
+        "name": "Simultaneous COP Total"
+      },
+      "simultaneous_electrical_energy_daily": {
+        "name": "Simultaneous Electrical Energy Daily"
+      },
+      "simultaneous_electrical_energy_monthly": {
+        "name": "Simultaneous Electrical Energy Monthly"
+      },
+      "simultaneous_electrical_energy_yearly": {
+        "name": "Simultaneous Electrical Energy Yearly"
+      },
+      "simultaneous_thermal_energy_daily": {
+        "name": "Simultaneous Thermal Energy Daily"
+      },
+      "simultaneous_thermal_energy_monthly": {
+        "name": "Simultaneous Thermal Energy Monthly"
+      },
+      "simultaneous_thermal_energy_yearly": {
+        "name": "Simultaneous Thermal Energy Yearly"
       }
     }
   }

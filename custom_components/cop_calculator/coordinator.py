@@ -26,6 +26,10 @@ from .const import (
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_PRICE_TYPE,
     CONF_AVERAGING_PERIOD,
+    CONF_MODE_ENTITY,
+    CONF_MODE_HEATING_STATES,
+    CONF_MODE_DHW_STATES,
+    CONF_MODE_SIMULTANEOUS_STATES,
     SENSOR_TYPE_POWER,
     PRICE_TYPE_FIXED,
     PRICE_TYPE_SENSOR,
@@ -35,6 +39,10 @@ from .const import (
     PERIOD_YEARLY,
     PERIOD_TOTAL,
     DEFAULT_AVERAGING_PERIOD,
+    MODE_HEATING,
+    MODE_DHW,
+    MODE_SIMULTANEOUS,
+    MODE_UNKNOWN,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,6 +74,52 @@ class COPDataCoordinator:
         self._price_type: str = entry.data.get(CONF_PRICE_TYPE, "none")
         self._fixed_price: float | None = entry.data.get(CONF_ELECTRICITY_PRICE)
         self._price_entity: str | None = entry.data.get(CONF_ELECTRICITY_PRICE_ENTITY)
+
+        # Mode configuration
+        self._mode_entity: str | None = entry.data.get(CONF_MODE_ENTITY) or None
+        self._mode_heating_states: list[str] = self._parse_state_list(
+            entry.data.get(CONF_MODE_HEATING_STATES, "")
+        )
+        self._mode_dhw_states: list[str] = self._parse_state_list(
+            entry.data.get(CONF_MODE_DHW_STATES, "")
+        )
+        self._mode_simultaneous_states: list[str] = self._parse_state_list(
+            entry.data.get(CONF_MODE_SIMULTANEOUS_STATES, "")
+        )
+        self._mode_enabled: bool = bool(self._mode_entity)
+        self._all_modes: tuple[str, ...] = (
+            MODE_HEATING, MODE_DHW, MODE_SIMULTANEOUS
+        )
+
+        # Per-mode cumulative energy tracking
+        self._mode_cumulative_electrical: dict[str, float] = {
+            m: 0.0 for m in self._all_modes
+        }
+        self._mode_cumulative_thermal: dict[str, float] = {
+            m: 0.0 for m in self._all_modes
+        }
+
+        # Per-mode period starts: {mode: {period: (electrical_start, thermal_start)}}
+        self._mode_period_starts: dict[str, dict[str, tuple[float, float]]] = {
+            m: {} for m in self._all_modes
+        }
+
+        # Per-mode total starts
+        self._mode_total_electrical_start: dict[str, float | None] = {
+            m: None for m in self._all_modes
+        }
+        self._mode_total_thermal_start: dict[str, float | None] = {
+            m: None for m in self._all_modes
+        }
+
+        # Per-mode sliding window samples
+        self._mode_samples: dict[str, deque[tuple[datetime, float, float]]] = {
+            m: deque() for m in self._all_modes
+        }
+
+        # Previous cumulative values for delta computation
+        self._prev_cumulative_electrical: float | None = None
+        self._prev_cumulative_thermal: float | None = None
 
         # Sliding window samples: (timestamp, electrical_cumulative, thermal_cumulative)
         self._samples: deque[tuple[datetime, float, float]] = deque()
@@ -208,6 +262,8 @@ class COPDataCoordinator:
             self._initialize_period_starts()
 
         self._update_samples(now)
+        if self._mode_enabled:
+            self._attribute_energy_to_mode(now)
         self._update_data()
         self._notify_update()
 
@@ -260,6 +316,63 @@ class COPDataCoordinator:
         else:
             # Energy (kWh) — use directly
             self._cumulative_thermal = value
+
+    @staticmethod
+    def _parse_state_list(value: str) -> list[str]:
+        """Parse a comma-separated string into a list of trimmed, non-empty strings."""
+        if not value:
+            return []
+        return [s.strip() for s in value.split(",") if s.strip()]
+
+    def _resolve_current_mode(self) -> str:
+        """Read the mode sensor and return the internal mode identifier."""
+        if not self._mode_enabled or not self._mode_entity:
+            return MODE_UNKNOWN
+        state = self.hass.states.get(self._mode_entity)
+        if state is None or state.state in ("unknown", "unavailable"):
+            return MODE_UNKNOWN
+        value = state.state.strip()
+        if value in self._mode_heating_states:
+            return MODE_HEATING
+        if value in self._mode_dhw_states:
+            return MODE_DHW
+        if value in self._mode_simultaneous_states:
+            return MODE_SIMULTANEOUS
+        return MODE_UNKNOWN
+
+    def _attribute_energy_to_mode(self, now: datetime) -> None:
+        """Attribute energy deltas to the current operating mode."""
+        electrical = self._cumulative_electrical
+        thermal = self._cumulative_thermal
+        if electrical is None or thermal is None:
+            return
+
+        # On first call, just record the baseline
+        if self._prev_cumulative_electrical is None:
+            self._prev_cumulative_electrical = electrical
+            self._prev_cumulative_thermal = thermal
+            return
+
+        elec_delta = max(0.0, electrical - self._prev_cumulative_electrical)
+        therm_delta = max(0.0, thermal - self._prev_cumulative_thermal)
+        self._prev_cumulative_electrical = electrical
+        self._prev_cumulative_thermal = thermal
+
+        mode = self._resolve_current_mode()
+
+        if mode in self._all_modes:
+            self._mode_cumulative_electrical[mode] += elec_delta
+            self._mode_cumulative_thermal[mode] += therm_delta
+
+        # Update per-mode sliding window samples
+        for m in self._all_modes:
+            self._mode_samples[m].append(
+                (now, self._mode_cumulative_electrical[m],
+                 self._mode_cumulative_thermal[m])
+            )
+            cutoff = now - timedelta(minutes=self._averaging_period)
+            while self._mode_samples[m] and self._mode_samples[m][0][0] < cutoff:
+                self._mode_samples[m].popleft()
 
     def _initialize_period_starts(self) -> None:
         """Initialize period starts from current values when first real data arrives."""
@@ -394,6 +507,69 @@ class COPDataCoordinator:
             ),
         }
 
+        # Mode-specific COP calculations
+        if self._mode_enabled:
+            for mode in self._all_modes:
+                prefix = mode  # "heating", "dhw", or "simultaneous"
+                mode_elec = self._mode_cumulative_electrical[mode]
+                mode_therm = self._mode_cumulative_thermal[mode]
+
+                # Initialize mode total starts if needed
+                if self._mode_total_electrical_start[mode] is None:
+                    self._mode_total_electrical_start[mode] = mode_elec
+                if self._mode_total_thermal_start[mode] is None:
+                    self._mode_total_thermal_start[mode] = mode_therm
+
+                for period in (
+                    PERIOD_DAILY, PERIOD_WEEKLY, PERIOD_MONTHLY, PERIOD_YEARLY
+                ):
+                    if period not in self._mode_period_starts[mode]:
+                        self._mode_period_starts[mode][period] = (
+                            mode_elec, mode_therm
+                        )
+
+                # Current COP (sliding window)
+                samples = self._mode_samples[mode]
+                mode_cop_current = None
+                if len(samples) >= 2:
+                    oldest = samples[0]
+                    newest = samples[-1]
+                    mode_cop_current = self._calculate_cop(
+                        newest[2] - oldest[2], newest[1] - oldest[1]
+                    )
+                self.data[f"{prefix}_cop_current"] = mode_cop_current
+
+                # Period COPs and energy
+                for period in (
+                    PERIOD_DAILY, PERIOD_WEEKLY, PERIOD_MONTHLY, PERIOD_YEARLY
+                ):
+                    start = self._mode_period_starts[mode].get(
+                        period, (mode_elec, mode_therm)
+                    )
+                    e_delta = mode_elec - start[0]
+                    t_delta = mode_therm - start[1]
+                    self.data[f"{prefix}_cop_{period}"] = self._calculate_cop(
+                        t_delta, e_delta
+                    )
+                    if period in (PERIOD_DAILY, PERIOD_MONTHLY, PERIOD_YEARLY):
+                        self.data[f"{prefix}_electrical_energy_{period}"] = round(
+                            e_delta, 3
+                        )
+                        self.data[f"{prefix}_thermal_energy_{period}"] = round(
+                            t_delta, 3
+                        )
+
+                # Total COP
+                total_e = mode_elec - (
+                    self._mode_total_electrical_start[mode] or mode_elec
+                )
+                total_t = mode_therm - (
+                    self._mode_total_thermal_start[mode] or mode_therm
+                )
+                self.data[f"{prefix}_cop_total"] = self._calculate_cop(
+                    total_t, total_e
+                )
+
         # Cost calculations (only if price is available)
         if price is not None:
             self.data["electricity_cost_daily"] = round(
@@ -437,6 +613,27 @@ class COPDataCoordinator:
             if local_now.month == 1:
                 self._period_starts[PERIOD_YEARLY] = (electrical, thermal)
 
+        # Mode-specific period resets
+        if self._mode_enabled:
+            for mode in self._all_modes:
+                mode_elec = self._mode_cumulative_electrical[mode]
+                mode_therm = self._mode_cumulative_thermal[mode]
+                self._mode_period_starts[mode][PERIOD_DAILY] = (
+                    mode_elec, mode_therm
+                )
+                if local_now.weekday() == 0:
+                    self._mode_period_starts[mode][PERIOD_WEEKLY] = (
+                        mode_elec, mode_therm
+                    )
+                if local_now.day == 1:
+                    self._mode_period_starts[mode][PERIOD_MONTHLY] = (
+                        mode_elec, mode_therm
+                    )
+                    if local_now.month == 1:
+                        self._mode_period_starts[mode][PERIOD_YEARLY] = (
+                            mode_elec, mode_therm
+                        )
+
         self._update_data()
         self._notify_update()
         self.hass.async_create_task(self._async_save_state())
@@ -454,6 +651,17 @@ class COPDataCoordinator:
             "last_electrical_power": self._last_electrical_power,
             "last_thermal_power": self._last_thermal_power,
         }
+        if self._mode_enabled:
+            data["mode_cumulative_electrical"] = self._mode_cumulative_electrical
+            data["mode_cumulative_thermal"] = self._mode_cumulative_thermal
+            data["mode_total_electrical_start"] = self._mode_total_electrical_start
+            data["mode_total_thermal_start"] = self._mode_total_thermal_start
+            data["mode_period_starts"] = {
+                mode: {k: list(v) for k, v in periods.items()}
+                for mode, periods in self._mode_period_starts.items()
+            }
+            data["prev_cumulative_electrical"] = self._prev_cumulative_electrical
+            data["prev_cumulative_thermal"] = self._prev_cumulative_thermal
         await self._store.async_save(data)
 
     async def _async_restore_state(self) -> None:
@@ -478,6 +686,44 @@ class COPDataCoordinator:
         for k, v in period_starts.items():
             if isinstance(v, list) and len(v) == 2:
                 self._period_starts[k] = (v[0], v[1])
+
+        # Restore mode-specific data
+        if self._mode_enabled:
+            mode_elec = data.get("mode_cumulative_electrical")
+            if isinstance(mode_elec, dict):
+                for m in self._all_modes:
+                    if m in mode_elec:
+                        self._mode_cumulative_electrical[m] = mode_elec[m]
+
+            mode_therm = data.get("mode_cumulative_thermal")
+            if isinstance(mode_therm, dict):
+                for m in self._all_modes:
+                    if m in mode_therm:
+                        self._mode_cumulative_thermal[m] = mode_therm[m]
+
+            mode_total_elec = data.get("mode_total_electrical_start")
+            if isinstance(mode_total_elec, dict):
+                for m in self._all_modes:
+                    if m in mode_total_elec:
+                        self._mode_total_electrical_start[m] = mode_total_elec[m]
+
+            mode_total_therm = data.get("mode_total_thermal_start")
+            if isinstance(mode_total_therm, dict):
+                for m in self._all_modes:
+                    if m in mode_total_therm:
+                        self._mode_total_thermal_start[m] = mode_total_therm[m]
+
+            mode_period_starts = data.get("mode_period_starts", {})
+            for mode, periods in mode_period_starts.items():
+                if mode in self._all_modes and isinstance(periods, dict):
+                    for k, v in periods.items():
+                        if isinstance(v, list) and len(v) == 2:
+                            self._mode_period_starts[mode][k] = (v[0], v[1])
+
+            self._prev_cumulative_electrical = data.get(
+                "prev_cumulative_electrical"
+            )
+            self._prev_cumulative_thermal = data.get("prev_cumulative_thermal")
 
         # Mark as having real data if we successfully restored values
         if self._cumulative_electrical is not None and self._cumulative_thermal is not None:
@@ -507,6 +753,19 @@ class COPDataCoordinator:
         self._price_type = entry.data.get(CONF_PRICE_TYPE, "none")
         self._fixed_price = entry.data.get(CONF_ELECTRICITY_PRICE)
         self._price_entity = entry.data.get(CONF_ELECTRICITY_PRICE_ENTITY)
+
+        # Mode configuration
+        self._mode_entity = entry.data.get(CONF_MODE_ENTITY) or None
+        self._mode_heating_states = self._parse_state_list(
+            entry.data.get(CONF_MODE_HEATING_STATES, "")
+        )
+        self._mode_dhw_states = self._parse_state_list(
+            entry.data.get(CONF_MODE_DHW_STATES, "")
+        )
+        self._mode_simultaneous_states = self._parse_state_list(
+            entry.data.get(CONF_MODE_SIMULTANEOUS_STATES, "")
+        )
+        self._mode_enabled = bool(self._mode_entity)
 
         # Re-setup state listeners
         for unsub in self._unsub_state_listeners:

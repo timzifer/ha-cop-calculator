@@ -19,6 +19,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from .const import (
     DOMAIN,
     CONF_NAME,
+    CONF_MODE_ENTITY,
     CONF_PRICE_TYPE,
     PRICE_TYPE_NONE,
     DEFAULT_NAME,
@@ -39,6 +40,42 @@ from .const import (
     SENSOR_COST_MONTHLY,
     SENSOR_COST_YEARLY,
     SENSOR_SAVINGS_COST_DAILY,
+    SENSOR_HEATING_COP_CURRENT,
+    SENSOR_HEATING_COP_DAILY,
+    SENSOR_HEATING_COP_WEEKLY,
+    SENSOR_HEATING_COP_MONTHLY,
+    SENSOR_HEATING_COP_YEARLY,
+    SENSOR_HEATING_COP_TOTAL,
+    SENSOR_HEATING_ELECTRICAL_DAILY,
+    SENSOR_HEATING_ELECTRICAL_MONTHLY,
+    SENSOR_HEATING_ELECTRICAL_YEARLY,
+    SENSOR_HEATING_THERMAL_DAILY,
+    SENSOR_HEATING_THERMAL_MONTHLY,
+    SENSOR_HEATING_THERMAL_YEARLY,
+    SENSOR_DHW_COP_CURRENT,
+    SENSOR_DHW_COP_DAILY,
+    SENSOR_DHW_COP_WEEKLY,
+    SENSOR_DHW_COP_MONTHLY,
+    SENSOR_DHW_COP_YEARLY,
+    SENSOR_DHW_COP_TOTAL,
+    SENSOR_DHW_ELECTRICAL_DAILY,
+    SENSOR_DHW_ELECTRICAL_MONTHLY,
+    SENSOR_DHW_ELECTRICAL_YEARLY,
+    SENSOR_DHW_THERMAL_DAILY,
+    SENSOR_DHW_THERMAL_MONTHLY,
+    SENSOR_DHW_THERMAL_YEARLY,
+    SENSOR_SIMULTANEOUS_COP_CURRENT,
+    SENSOR_SIMULTANEOUS_COP_DAILY,
+    SENSOR_SIMULTANEOUS_COP_WEEKLY,
+    SENSOR_SIMULTANEOUS_COP_MONTHLY,
+    SENSOR_SIMULTANEOUS_COP_YEARLY,
+    SENSOR_SIMULTANEOUS_COP_TOTAL,
+    SENSOR_SIMULTANEOUS_ELECTRICAL_DAILY,
+    SENSOR_SIMULTANEOUS_ELECTRICAL_MONTHLY,
+    SENSOR_SIMULTANEOUS_ELECTRICAL_YEARLY,
+    SENSOR_SIMULTANEOUS_THERMAL_DAILY,
+    SENSOR_SIMULTANEOUS_THERMAL_MONTHLY,
+    SENSOR_SIMULTANEOUS_THERMAL_YEARLY,
 )
 from .coordinator import COPDataCoordinator
 
@@ -219,6 +256,81 @@ SENSOR_DESCRIPTIONS: dict[str, dict[str, Any]] = {
 }
 
 
+def _mode_cop_sensor(key: str, name_en: str, name_de: str, icon: str) -> tuple[str, dict]:
+    """Create a mode-specific COP sensor description."""
+    return (key, {
+        "name_en": name_en,
+        "name_de": name_de,
+        "icon": icon,
+        "device_class": None,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "unit": None,
+        "precision": 2,
+        "requires_price": False,
+        "requires_mode": True,
+    })
+
+
+def _mode_energy_sensor(
+    key: str, name_en: str, name_de: str, icon: str
+) -> tuple[str, dict]:
+    """Create a mode-specific energy sensor description."""
+    return (key, {
+        "name_en": name_en,
+        "name_de": name_de,
+        "icon": icon,
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL,
+        "unit": "kWh",
+        "precision": 1,
+        "requires_price": False,
+        "requires_mode": True,
+    })
+
+
+MODE_SENSOR_DESCRIPTIONS: dict[str, dict[str, Any]] = dict([
+    # --- Heating mode ---
+    _mode_cop_sensor(SENSOR_HEATING_COP_CURRENT, "Heating COP Current", "Heizung COP Aktuell", "mdi:radiator"),
+    _mode_cop_sensor(SENSOR_HEATING_COP_DAILY, "Heating COP Daily", "Heizung COP Täglich", "mdi:radiator"),
+    _mode_cop_sensor(SENSOR_HEATING_COP_WEEKLY, "Heating COP Weekly", "Heizung COP Wöchentlich", "mdi:radiator"),
+    _mode_cop_sensor(SENSOR_HEATING_COP_MONTHLY, "Heating COP Monthly", "Heizung COP Monatlich", "mdi:radiator"),
+    _mode_cop_sensor(SENSOR_HEATING_COP_YEARLY, "Heating SCOP (Yearly)", "Heizung SCOP (Jährlich)", "mdi:chart-line"),
+    _mode_cop_sensor(SENSOR_HEATING_COP_TOTAL, "Heating COP Total", "Heizung COP Gesamt", "mdi:chart-line"),
+    _mode_energy_sensor(SENSOR_HEATING_ELECTRICAL_DAILY, "Heating Electrical Energy Daily", "Heizung Elektrische Energie Täglich", "mdi:flash"),
+    _mode_energy_sensor(SENSOR_HEATING_ELECTRICAL_MONTHLY, "Heating Electrical Energy Monthly", "Heizung Elektrische Energie Monatlich", "mdi:flash"),
+    _mode_energy_sensor(SENSOR_HEATING_ELECTRICAL_YEARLY, "Heating Electrical Energy Yearly", "Heizung Elektrische Energie Jährlich", "mdi:flash"),
+    _mode_energy_sensor(SENSOR_HEATING_THERMAL_DAILY, "Heating Thermal Energy Daily", "Heizung Thermische Energie Täglich", "mdi:fire"),
+    _mode_energy_sensor(SENSOR_HEATING_THERMAL_MONTHLY, "Heating Thermal Energy Monthly", "Heizung Thermische Energie Monatlich", "mdi:fire"),
+    _mode_energy_sensor(SENSOR_HEATING_THERMAL_YEARLY, "Heating Thermal Energy Yearly", "Heizung Thermische Energie Jährlich", "mdi:fire"),
+    # --- DHW mode ---
+    _mode_cop_sensor(SENSOR_DHW_COP_CURRENT, "DHW COP Current", "Warmwasser COP Aktuell", "mdi:water-boiler"),
+    _mode_cop_sensor(SENSOR_DHW_COP_DAILY, "DHW COP Daily", "Warmwasser COP Täglich", "mdi:water-boiler"),
+    _mode_cop_sensor(SENSOR_DHW_COP_WEEKLY, "DHW COP Weekly", "Warmwasser COP Wöchentlich", "mdi:water-boiler"),
+    _mode_cop_sensor(SENSOR_DHW_COP_MONTHLY, "DHW COP Monthly", "Warmwasser COP Monatlich", "mdi:water-boiler"),
+    _mode_cop_sensor(SENSOR_DHW_COP_YEARLY, "DHW SCOP (Yearly)", "Warmwasser SCOP (Jährlich)", "mdi:chart-line"),
+    _mode_cop_sensor(SENSOR_DHW_COP_TOTAL, "DHW COP Total", "Warmwasser COP Gesamt", "mdi:chart-line"),
+    _mode_energy_sensor(SENSOR_DHW_ELECTRICAL_DAILY, "DHW Electrical Energy Daily", "Warmwasser Elektrische Energie Täglich", "mdi:flash"),
+    _mode_energy_sensor(SENSOR_DHW_ELECTRICAL_MONTHLY, "DHW Electrical Energy Monthly", "Warmwasser Elektrische Energie Monatlich", "mdi:flash"),
+    _mode_energy_sensor(SENSOR_DHW_ELECTRICAL_YEARLY, "DHW Electrical Energy Yearly", "Warmwasser Elektrische Energie Jährlich", "mdi:flash"),
+    _mode_energy_sensor(SENSOR_DHW_THERMAL_DAILY, "DHW Thermal Energy Daily", "Warmwasser Thermische Energie Täglich", "mdi:fire"),
+    _mode_energy_sensor(SENSOR_DHW_THERMAL_MONTHLY, "DHW Thermal Energy Monthly", "Warmwasser Thermische Energie Monatlich", "mdi:fire"),
+    _mode_energy_sensor(SENSOR_DHW_THERMAL_YEARLY, "DHW Thermal Energy Yearly", "Warmwasser Thermische Energie Jährlich", "mdi:fire"),
+    # --- Simultaneous mode ---
+    _mode_cop_sensor(SENSOR_SIMULTANEOUS_COP_CURRENT, "Simultaneous COP Current", "Simultan COP Aktuell", "mdi:heat-wave"),
+    _mode_cop_sensor(SENSOR_SIMULTANEOUS_COP_DAILY, "Simultaneous COP Daily", "Simultan COP Täglich", "mdi:heat-wave"),
+    _mode_cop_sensor(SENSOR_SIMULTANEOUS_COP_WEEKLY, "Simultaneous COP Weekly", "Simultan COP Wöchentlich", "mdi:heat-wave"),
+    _mode_cop_sensor(SENSOR_SIMULTANEOUS_COP_MONTHLY, "Simultaneous COP Monthly", "Simultan COP Monatlich", "mdi:heat-wave"),
+    _mode_cop_sensor(SENSOR_SIMULTANEOUS_COP_YEARLY, "Simultaneous SCOP (Yearly)", "Simultan SCOP (Jährlich)", "mdi:chart-line"),
+    _mode_cop_sensor(SENSOR_SIMULTANEOUS_COP_TOTAL, "Simultaneous COP Total", "Simultan COP Gesamt", "mdi:chart-line"),
+    _mode_energy_sensor(SENSOR_SIMULTANEOUS_ELECTRICAL_DAILY, "Simultaneous Electrical Energy Daily", "Simultan Elektrische Energie Täglich", "mdi:flash"),
+    _mode_energy_sensor(SENSOR_SIMULTANEOUS_ELECTRICAL_MONTHLY, "Simultaneous Electrical Energy Monthly", "Simultan Elektrische Energie Monatlich", "mdi:flash"),
+    _mode_energy_sensor(SENSOR_SIMULTANEOUS_ELECTRICAL_YEARLY, "Simultaneous Electrical Energy Yearly", "Simultan Elektrische Energie Jährlich", "mdi:flash"),
+    _mode_energy_sensor(SENSOR_SIMULTANEOUS_THERMAL_DAILY, "Simultaneous Thermal Energy Daily", "Simultan Thermische Energie Täglich", "mdi:fire"),
+    _mode_energy_sensor(SENSOR_SIMULTANEOUS_THERMAL_MONTHLY, "Simultaneous Thermal Energy Monthly", "Simultan Thermische Energie Monatlich", "mdi:fire"),
+    _mode_energy_sensor(SENSOR_SIMULTANEOUS_THERMAL_YEARLY, "Simultaneous Thermal Energy Yearly", "Simultan Thermische Energie Jährlich", "mdi:fire"),
+])
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -228,12 +340,20 @@ async def async_setup_entry(
     coordinator: COPDataCoordinator = hass.data[DOMAIN][entry.entry_id]
     name = entry.data.get(CONF_NAME, DEFAULT_NAME)
     price_type = entry.data.get(CONF_PRICE_TYPE, PRICE_TYPE_NONE)
+    mode_enabled = bool(entry.data.get(CONF_MODE_ENTITY))
+
+    all_descriptions: dict[str, dict[str, Any]] = dict(SENSOR_DESCRIPTIONS)
+    if mode_enabled:
+        all_descriptions.update(MODE_SENSOR_DESCRIPTIONS)
 
     entities: list[COPSensor] = []
 
-    for sensor_key, description in SENSOR_DESCRIPTIONS.items():
+    for sensor_key, description in all_descriptions.items():
         # Skip cost sensors if no price configured
         if description["requires_price"] and price_type == PRICE_TYPE_NONE:
+            continue
+        # Skip mode sensors if mode not enabled
+        if description.get("requires_mode", False) and not mode_enabled:
             continue
 
         entities.append(

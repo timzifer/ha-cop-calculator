@@ -21,6 +21,22 @@
           "averaging_period": "Zeitfenster (in Minuten) für die Berechnung des aktuellen COP. Längere Zeiträume gleichen Verzögerungen zwischen elektrischem Verbrauch und Wärmeabgabe aus."
         }
       },
+      "mode": {
+        "title": "Betriebsmodus (Optional)",
+        "description": "Optional: Konfiguriere einen Betriebsmodus-Sensor, um COP getrennt für Heizung, Warmwasser (WW) und Simultanbetrieb zu berechnen. Lass den Modus-Sensor leer, um diesen Schritt zu überspringen.",
+        "data": {
+          "mode_entity": "Betriebsmodus-Sensor",
+          "mode_heating_states": "Zustandswerte für Heizbetrieb",
+          "mode_dhw_states": "Zustandswerte für Warmwasserbetrieb",
+          "mode_simultaneous_states": "Zustandswerte für Simultanbetrieb"
+        },
+        "data_description": {
+          "mode_entity": "Entität, die den aktuellen Betriebsmodus der Wärmepumpe anzeigt (z.B. ein input_select oder Sensor)",
+          "mode_heating_states": "Kommagetrennte Zustandswerte für den Heizbetrieb (z.B. 'Heizen, heating')",
+          "mode_dhw_states": "Kommagetrennte Zustandswerte für den Warmwasserbetrieb (z.B. 'Warmwasser, dhw')",
+          "mode_simultaneous_states": "Kommagetrennte Zustandswerte für den Simultanbetrieb (z.B. 'Heizen+WW, simultaneous'). Leer lassen, wenn nicht zutreffend."
+        }
+      },
       "pricing": {
         "title": "Strompreis",
         "description": "Optional: Strompreis konfigurieren, um Kosten und Einsparungen zu berechnen.",
@@ -39,7 +55,9 @@
     "error": {
       "same_entity": "Elektrischer und thermischer Sensor müssen unterschiedliche Entitäten sein",
       "no_price": "Bitte gib einen Strompreis ein",
-      "no_price_entity": "Bitte wähle einen Preis-Sensor aus"
+      "no_price_entity": "Bitte wähle einen Preis-Sensor aus",
+      "no_heating_states": "Bitte gib mindestens einen Zustandswert für den Heizbetrieb ein",
+      "no_dhw_states": "Bitte gib mindestens einen Zustandswert für den Warmwasserbetrieb ein"
     }
   },
   "options": {
@@ -64,6 +82,22 @@
           "averaging_period": "Zeitfenster (in Minuten) für die Berechnung des aktuellen COP"
         }
       },
+      "mode": {
+        "title": "Betriebsmodus (Optional)",
+        "description": "Betriebsmodus-Einstellungen für getrennte COP-Berechnung aktualisieren.",
+        "data": {
+          "mode_entity": "Betriebsmodus-Sensor",
+          "mode_heating_states": "Zustandswerte für Heizbetrieb",
+          "mode_dhw_states": "Zustandswerte für Warmwasserbetrieb",
+          "mode_simultaneous_states": "Zustandswerte für Simultanbetrieb"
+        },
+        "data_description": {
+          "mode_entity": "Entität, die den aktuellen Betriebsmodus der Wärmepumpe anzeigt",
+          "mode_heating_states": "Kommagetrennte Zustandswerte für den Heizbetrieb",
+          "mode_dhw_states": "Kommagetrennte Zustandswerte für den Warmwasserbetrieb",
+          "mode_simultaneous_states": "Kommagetrennte Zustandswerte für den Simultanbetrieb"
+        }
+      },
       "pricing": {
         "title": "Strompreis",
         "description": "Strompreis-Einstellungen aktualisieren.",
@@ -82,7 +116,9 @@
     "error": {
       "same_entity": "Elektrischer und thermischer Sensor müssen unterschiedliche Entitäten sein",
       "no_price": "Bitte gib einen Strompreis ein",
-      "no_price_entity": "Bitte wähle einen Preis-Sensor aus"
+      "no_price_entity": "Bitte wähle einen Preis-Sensor aus",
+      "no_heating_states": "Bitte gib mindestens einen Zustandswert für den Heizbetrieb ein",
+      "no_dhw_states": "Bitte gib mindestens einen Zustandswert für den Warmwasserbetrieb ein"
     }
   },
   "entity": {
@@ -137,6 +173,114 @@
       },
       "savings_cost_daily": {
         "name": "Eingesparte Kosten Täglich"
+      },
+      "heating_cop_current": {
+        "name": "Heizung COP Aktuell"
+      },
+      "heating_cop_daily": {
+        "name": "Heizung COP Täglich"
+      },
+      "heating_cop_weekly": {
+        "name": "Heizung COP Wöchentlich"
+      },
+      "heating_cop_monthly": {
+        "name": "Heizung COP Monatlich"
+      },
+      "heating_cop_yearly": {
+        "name": "Heizung SCOP (Jährlich)"
+      },
+      "heating_cop_total": {
+        "name": "Heizung COP Gesamt"
+      },
+      "heating_electrical_energy_daily": {
+        "name": "Heizung Elektrische Energie Täglich"
+      },
+      "heating_electrical_energy_monthly": {
+        "name": "Heizung Elektrische Energie Monatlich"
+      },
+      "heating_electrical_energy_yearly": {
+        "name": "Heizung Elektrische Energie Jährlich"
+      },
+      "heating_thermal_energy_daily": {
+        "name": "Heizung Thermische Energie Täglich"
+      },
+      "heating_thermal_energy_monthly": {
+        "name": "Heizung Thermische Energie Monatlich"
+      },
+      "heating_thermal_energy_yearly": {
+        "name": "Heizung Thermische Energie Jährlich"
+      },
+      "dhw_cop_current": {
+        "name": "Warmwasser COP Aktuell"
+      },
+      "dhw_cop_daily": {
+        "name": "Warmwasser COP Täglich"
+      },
+      "dhw_cop_weekly": {
+        "name": "Warmwasser COP Wöchentlich"
+      },
+      "dhw_cop_monthly": {
+        "name": "Warmwasser COP Monatlich"
+      },
+      "dhw_cop_yearly": {
+        "name": "Warmwasser SCOP (Jährlich)"
+      },
+      "dhw_cop_total": {
+        "name": "Warmwasser COP Gesamt"
+      },
+      "dhw_electrical_energy_daily": {
+        "name": "Warmwasser Elektrische Energie Täglich"
+      },
+      "dhw_electrical_energy_monthly": {
+        "name": "Warmwasser Elektrische Energie Monatlich"
+      },
+      "dhw_electrical_energy_yearly": {
+        "name": "Warmwasser Elektrische Energie Jährlich"
+      },
+      "dhw_thermal_energy_daily": {
+        "name": "Warmwasser Thermische Energie Täglich"
+      },
+      "dhw_thermal_energy_monthly": {
+        "name": "Warmwasser Thermische Energie Monatlich"
+      },
+      "dhw_thermal_energy_yearly": {
+        "name": "Warmwasser Thermische Energie Jährlich"
+      },
+      "simultaneous_cop_current": {
+        "name": "Simultan COP Aktuell"
+      },
+      "simultaneous_cop_daily": {
+        "name": "Simultan COP Täglich"
+      },
+      "simultaneous_cop_weekly": {
+        "name": "Simultan COP Wöchentlich"
+      },
+      "simultaneous_cop_monthly": {
+        "name": "Simultan COP Monatlich"
+      },
+      "simultaneous_cop_yearly": {
+        "name": "Simultan SCOP (Jährlich)"
+      },
+      "simultaneous_cop_total": {
+        "name": "Simultan COP Gesamt"
+      },
+      "simultaneous_electrical_energy_daily": {
+        "name": "Simultan Elektrische Energie Täglich"
+      },
+      "simultaneous_electrical_energy_monthly": {
+        "name": "Simultan Elektrische Energie Monatlich"
+      },
+      "simultaneous_electrical_energy_yearly": {
+        "name": "Simultan Elektrische Energie Jährlich"
+      },
+      "simultaneous_thermal_energy_daily": {
+        "name": "Simultan Thermische Energie Täglich"
+      },
+      "simultaneous_thermal_energy_monthly": {
+        "name": "Simultan Thermische Energie Monatlich"
+      },
+      "simultaneous_thermal_energy_yearly": {
+        "name": "Simultan Thermische Energie Jährlich"
       }
     }
   }
