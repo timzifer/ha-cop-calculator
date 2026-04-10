@@ -77,8 +77,8 @@ class COPDataCoordinator:
         self._last_thermal_power_time: datetime | None = None
 
         # Cumulative energy values (used when input is power sensors)
-        self._cumulative_electrical: float = 0.0
-        self._cumulative_thermal: float = 0.0
+        self._cumulative_electrical: float | None = None
+        self._cumulative_thermal: float | None = None
 
         # Period start values: {period: (electrical_start, thermal_start)}
         self._period_starts: dict[str, tuple[float, float]] = {}
@@ -86,6 +86,9 @@ class COPDataCoordinator:
         # Total start values (never reset)
         self._total_electrical_start: float | None = None
         self._total_thermal_start: float | None = None
+
+        # Track whether we have received real data from sensors
+        self._has_real_data: bool = False
 
         # Current computed values
         self.data: dict[str, float | None] = {}
@@ -98,9 +101,47 @@ class COPDataCoordinator:
     async def async_initialize(self) -> None:
         """Initialize the coordinator: restore state and set up listeners."""
         await self._async_restore_state()
+        self._read_initial_state()
         self._setup_state_listeners()
         self._setup_time_listeners()
-        self._update_data()
+        if self._has_real_data:
+            self._update_data()
+
+    def _read_initial_state(self) -> None:
+        """Read current state of input sensors from HA to avoid starting at 0."""
+        for entity_id, sensor_type, is_electrical in [
+            (self._electrical_entity, self._electrical_type, True),
+            (self._thermal_entity, self._thermal_type, False),
+        ]:
+            state = self.hass.states.get(entity_id)
+            if state is None or state.state in ("unknown", "unavailable"):
+                continue
+            try:
+                value = float(state.state)
+            except (ValueError, TypeError):
+                continue
+
+            if is_electrical:
+                if sensor_type == SENSOR_TYPE_POWER:
+                    self._last_electrical_power = value
+                    self._last_electrical_power_time = dt_util.utcnow()
+                    if self._cumulative_electrical is None:
+                        self._cumulative_electrical = 0.0
+                else:
+                    self._cumulative_electrical = value
+            else:
+                if sensor_type == SENSOR_TYPE_POWER:
+                    self._last_thermal_power = value
+                    self._last_thermal_power_time = dt_util.utcnow()
+                    if self._cumulative_thermal is None:
+                        self._cumulative_thermal = 0.0
+                else:
+                    self._cumulative_thermal = value
+
+        self._has_real_data = (
+            self._cumulative_electrical is not None
+            and self._cumulative_thermal is not None
+        )
 
     def _setup_state_listeners(self) -> None:
         """Set up state change listeners for input entities."""
@@ -157,6 +198,15 @@ class COPDataCoordinator:
         elif entity_id == self._thermal_entity:
             self._process_thermal_value(value, now)
 
+        # Only process data once we have values from both sensors
+        if self._cumulative_electrical is None or self._cumulative_thermal is None:
+            return
+
+        # Initialize period starts on first real data
+        if not self._has_real_data:
+            self._has_real_data = True
+            self._initialize_period_starts()
+
         self._update_samples(now)
         self._update_data()
         self._notify_update()
@@ -168,6 +218,8 @@ class COPDataCoordinator:
         """Process a new electrical sensor value."""
         if self._electrical_type == SENSOR_TYPE_POWER:
             # Power (kW) → integrate to energy (kWh)
+            if self._cumulative_electrical is None:
+                self._cumulative_electrical = 0.0
             if (
                 self._last_electrical_power is not None
                 and self._last_electrical_power_time is not None
@@ -191,6 +243,8 @@ class COPDataCoordinator:
         """Process a new thermal sensor value."""
         if self._thermal_type == SENSOR_TYPE_POWER:
             # Power (kW) → integrate to energy (kWh)
+            if self._cumulative_thermal is None:
+                self._cumulative_thermal = 0.0
             if (
                 self._last_thermal_power is not None
                 and self._last_thermal_power_time is not None
@@ -207,6 +261,22 @@ class COPDataCoordinator:
             # Energy (kWh) — use directly
             self._cumulative_thermal = value
 
+    def _initialize_period_starts(self) -> None:
+        """Initialize period starts from current values when first real data arrives."""
+        electrical = self._cumulative_electrical
+        thermal = self._cumulative_thermal
+        if electrical is None or thermal is None:
+            return
+
+        if self._total_electrical_start is None:
+            self._total_electrical_start = electrical
+        if self._total_thermal_start is None:
+            self._total_thermal_start = thermal
+
+        for period in (PERIOD_DAILY, PERIOD_WEEKLY, PERIOD_MONTHLY, PERIOD_YEARLY):
+            if period not in self._period_starts:
+                self._period_starts[period] = (electrical, thermal)
+
     def _update_samples(self, now: datetime) -> None:
         """Update the sliding window of samples."""
         self._samples.append(
@@ -218,11 +288,11 @@ class COPDataCoordinator:
         while self._samples and self._samples[0][0] < cutoff:
             self._samples.popleft()
 
-    def _get_current_electrical(self) -> float:
+    def _get_current_electrical(self) -> float | None:
         """Get current cumulative electrical energy."""
         return self._cumulative_electrical
 
-    def _get_current_thermal(self) -> float:
+    def _get_current_thermal(self) -> float | None:
         """Get current cumulative thermal energy."""
         return self._cumulative_thermal
 
@@ -253,17 +323,19 @@ class COPDataCoordinator:
 
     def _update_data(self) -> None:
         """Recalculate all sensor values."""
-        now = dt_util.utcnow()
         electrical = self._get_current_electrical()
         thermal = self._get_current_thermal()
 
-        # Initialize total start values on first data
+        # Don't calculate anything without real sensor data
+        if electrical is None or thermal is None:
+            return
+
+        # Initialize starts from real data (not from 0.0 defaults)
         if self._total_electrical_start is None:
             self._total_electrical_start = electrical
         if self._total_thermal_start is None:
             self._total_thermal_start = thermal
 
-        # Initialize period starts if missing
         for period in (PERIOD_DAILY, PERIOD_WEEKLY, PERIOD_MONTHLY, PERIOD_YEARLY):
             if period not in self._period_starts:
                 self._period_starts[period] = (electrical, thermal)
@@ -390,8 +462,13 @@ class COPDataCoordinator:
         if data is None:
             return
 
-        self._cumulative_electrical = data.get("cumulative_electrical", 0.0)
-        self._cumulative_thermal = data.get("cumulative_thermal", 0.0)
+        stored_electrical = data.get("cumulative_electrical")
+        stored_thermal = data.get("cumulative_thermal")
+        if stored_electrical is not None:
+            self._cumulative_electrical = stored_electrical
+        if stored_thermal is not None:
+            self._cumulative_thermal = stored_thermal
+
         self._total_electrical_start = data.get("total_electrical_start")
         self._total_thermal_start = data.get("total_thermal_start")
         self._last_electrical_power = data.get("last_electrical_power")
@@ -401,6 +478,10 @@ class COPDataCoordinator:
         for k, v in period_starts.items():
             if isinstance(v, list) and len(v) == 2:
                 self._period_starts[k] = (v[0], v[1])
+
+        # Mark as having real data if we successfully restored values
+        if self._cumulative_electrical is not None and self._cumulative_thermal is not None:
+            self._has_real_data = True
 
     @callback
     def async_stop(self) -> None:
