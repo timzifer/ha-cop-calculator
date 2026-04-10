@@ -479,9 +479,86 @@ class COPDataCoordinator:
             if isinstance(v, list) and len(v) == 2:
                 self._period_starts[k] = (v[0], v[1])
 
+        # Repair corrupt storage from bug where period starts were set to 0.0
+        # while cumulative values were already at high meter readings.
+        self._repair_corrupt_period_starts()
+
         # Mark as having real data if we successfully restored values
         if self._cumulative_electrical is not None and self._cumulative_thermal is not None:
             self._has_real_data = True
+
+    def _repair_corrupt_period_starts(self) -> None:
+        """Detect and fix period starts corrupted by the 0.0-initialization bug.
+
+        If a period start is near 0 but the cumulative value is much higher,
+        the start was never properly initialized. Reset it to the current
+        cumulative value so the next period begins from a clean baseline.
+        """
+        electrical = self._cumulative_electrical
+        thermal = self._cumulative_thermal
+        if electrical is None or thermal is None:
+            return
+
+        repaired = False
+
+        # Fix total starts
+        if (
+            self._total_electrical_start is not None
+            and self._total_electrical_start < 1.0
+            and electrical > 100.0
+        ):
+            _LOGGER.warning(
+                "COP Calculator: Repairing corrupt total_electrical_start "
+                "(was %.1f, cumulative is %.1f). Resetting to current value",
+                self._total_electrical_start,
+                electrical,
+            )
+            self._total_electrical_start = electrical
+            repaired = True
+
+        if (
+            self._total_thermal_start is not None
+            and self._total_thermal_start < 1.0
+            and thermal > 100.0
+        ):
+            _LOGGER.warning(
+                "COP Calculator: Repairing corrupt total_thermal_start "
+                "(was %.1f, cumulative is %.1f). Resetting to current value",
+                self._total_thermal_start,
+                thermal,
+            )
+            self._total_thermal_start = thermal
+            repaired = True
+
+        # Fix period starts
+        for period, (elec_start, therm_start) in list(self._period_starts.items()):
+            needs_fix = False
+
+            if elec_start < 1.0 and electrical > 100.0:
+                needs_fix = True
+            if therm_start < 1.0 and thermal > 100.0:
+                needs_fix = True
+
+            if needs_fix:
+                _LOGGER.warning(
+                    "COP Calculator: Repairing corrupt %s period start "
+                    "(was elec=%.1f therm=%.1f, current elec=%.1f therm=%.1f). "
+                    "Resetting to current values",
+                    period,
+                    elec_start,
+                    therm_start,
+                    electrical,
+                    thermal,
+                )
+                self._period_starts[period] = (electrical, thermal)
+                repaired = True
+
+        if repaired:
+            _LOGGER.info(
+                "COP Calculator: Storage repair complete. "
+                "Period counters will restart from current meter readings"
+            )
+            self.hass.async_create_task(self._async_save_state())
 
     @callback
     def async_stop(self) -> None:
