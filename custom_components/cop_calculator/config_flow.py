@@ -22,6 +22,10 @@ from .const import (
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_PRICE_TYPE,
     CONF_AVERAGING_PERIOD,
+    CONF_MODE_ENTITY,
+    CONF_MODE_HEATING_STATES,
+    CONF_MODE_DHW_STATES,
+    CONF_MODE_SIMULTANEOUS_STATES,
     SENSOR_TYPE_ENERGY,
     SENSOR_TYPE_POWER,
     PRICE_TYPE_NONE,
@@ -43,6 +47,33 @@ PRICE_TYPE_OPTIONS = [
     selector.SelectOptionDict(value=PRICE_TYPE_FIXED, label="Fixed price"),
     selector.SelectOptionDict(value=PRICE_TYPE_SENSOR, label="Price sensor"),
 ]
+
+
+def _get_mode_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+    """Build schema for the mode step."""
+    defaults = defaults or {}
+    return vol.Schema(
+        {
+            vol.Optional(
+                CONF_MODE_ENTITY,
+                default=defaults.get(CONF_MODE_ENTITY),
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(),
+            ),
+            vol.Optional(
+                CONF_MODE_HEATING_STATES,
+                default=defaults.get(CONF_MODE_HEATING_STATES, ""),
+            ): selector.TextSelector(),
+            vol.Optional(
+                CONF_MODE_DHW_STATES,
+                default=defaults.get(CONF_MODE_DHW_STATES, ""),
+            ): selector.TextSelector(),
+            vol.Optional(
+                CONF_MODE_SIMULTANEOUS_STATES,
+                default=defaults.get(CONF_MODE_SIMULTANEOUS_STATES, ""),
+            ): selector.TextSelector(),
+        }
+    )
 
 
 def _get_user_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
@@ -156,11 +187,41 @@ class COPCalculatorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "same_entity"
             else:
                 self._user_data = user_input
-                return await self.async_step_pricing()
+                return await self.async_step_mode()
 
         return self.async_show_form(
             step_id="user",
             data_schema=_get_user_schema(),
+            errors=errors,
+        )
+
+    async def async_step_mode(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Handle the operating mode configuration step (optional)."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            mode_entity = user_input.get(CONF_MODE_ENTITY)
+            if mode_entity:
+                heating_states = (
+                    user_input.get(CONF_MODE_HEATING_STATES, "") or ""
+                ).strip()
+                dhw_states = (
+                    user_input.get(CONF_MODE_DHW_STATES, "") or ""
+                ).strip()
+                if not heating_states:
+                    errors["base"] = "no_heating_states"
+                elif not dhw_states:
+                    errors["base"] = "no_dhw_states"
+
+            if not errors:
+                self._user_data.update(user_input)
+                return await self.async_step_pricing()
+
+        return self.async_show_form(
+            step_id="mode",
+            data_schema=_get_mode_schema(),
             errors=errors,
         )
 
@@ -194,6 +255,13 @@ class COPCalculatorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data.pop(CONF_ELECTRICITY_PRICE_ENTITY, None)
                 elif price_type == PRICE_TYPE_SENSOR:
                     data.pop(CONF_ELECTRICITY_PRICE, None)
+
+                # Clean up unused mode fields
+                if not data.get(CONF_MODE_ENTITY):
+                    data.pop(CONF_MODE_ENTITY, None)
+                    data.pop(CONF_MODE_HEATING_STATES, None)
+                    data.pop(CONF_MODE_DHW_STATES, None)
+                    data.pop(CONF_MODE_SIMULTANEOUS_STATES, None)
 
                 name = data.get(CONF_NAME, DEFAULT_NAME)
                 return self.async_create_entry(title=name, data=data)
@@ -233,11 +301,42 @@ class COPCalculatorOptionsFlow(config_entries.OptionsFlow):
                 errors["base"] = "same_entity"
             else:
                 self._user_data = user_input
-                return await self.async_step_pricing()
+                return await self.async_step_mode()
 
         return self.async_show_form(
             step_id="init",
             data_schema=_get_user_schema(defaults),
+            errors=errors,
+        )
+
+    async def async_step_mode(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Handle the operating mode options step (optional)."""
+        errors: dict[str, str] = {}
+        defaults = {**self._config_entry.data}
+
+        if user_input is not None:
+            mode_entity = user_input.get(CONF_MODE_ENTITY)
+            if mode_entity:
+                heating_states = (
+                    user_input.get(CONF_MODE_HEATING_STATES, "") or ""
+                ).strip()
+                dhw_states = (
+                    user_input.get(CONF_MODE_DHW_STATES, "") or ""
+                ).strip()
+                if not heating_states:
+                    errors["base"] = "no_heating_states"
+                elif not dhw_states:
+                    errors["base"] = "no_dhw_states"
+
+            if not errors:
+                self._user_data.update(user_input)
+                return await self.async_step_pricing()
+
+        return self.async_show_form(
+            step_id="mode",
+            data_schema=_get_mode_schema(defaults),
             errors=errors,
         )
 
@@ -269,6 +368,13 @@ class COPCalculatorOptionsFlow(config_entries.OptionsFlow):
                     data.pop(CONF_ELECTRICITY_PRICE_ENTITY, None)
                 elif price_type == PRICE_TYPE_SENSOR:
                     data.pop(CONF_ELECTRICITY_PRICE, None)
+
+                # Clean up unused mode fields
+                if not data.get(CONF_MODE_ENTITY):
+                    data.pop(CONF_MODE_ENTITY, None)
+                    data.pop(CONF_MODE_HEATING_STATES, None)
+                    data.pop(CONF_MODE_DHW_STATES, None)
+                    data.pop(CONF_MODE_SIMULTANEOUS_STATES, None)
 
                 self.hass.config_entries.async_update_entry(
                     self._config_entry, data=data
