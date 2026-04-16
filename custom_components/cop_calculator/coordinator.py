@@ -28,6 +28,7 @@ from .const import (
     CONF_MODE_HEATING_STATES,
     CONF_MODE_DHW_STATES,
     CONF_MODE_SIMULTANEOUS_STATES,
+    CONF_DEFAULT_MODE,
     SENSOR_TYPE_ENERGY,
     SENSOR_TYPE_POWER,
     UNIT_CONVERSION_MAP,
@@ -49,15 +50,6 @@ _LOGGER = logging.getLogger(__name__)
 
 STORAGE_VERSION = 1
 STORAGE_KEY_PREFIX = f"{DOMAIN}.coordinator"
-
-# Mapping from HA unit_of_measurement to internal sensor type
-_UNIT_TO_SENSOR_TYPE: dict[str, str] = {
-    "kWh": SENSOR_TYPE_ENERGY,
-    "Wh": SENSOR_TYPE_ENERGY_WH,
-    "kW": SENSOR_TYPE_POWER,
-    "W": SENSOR_TYPE_POWER_W,
-}
-
 
 class COPDataCoordinator:
     """Coordinator that tracks energy data and calculates COP values."""
@@ -226,32 +218,18 @@ class COPDataCoordinator:
         if self._has_real_data:
             self._update_data()
 
-    @staticmethod
-    def _detect_sensor_type_from_unit(unit: str | None) -> str:
-        """Detect internal sensor type from a HA unit_of_measurement string."""
-        return _UNIT_TO_SENSOR_TYPE.get(unit or "", SENSOR_TYPE_ENERGY)
-
     def _read_initial_state(self) -> None:
         """Read current state of input sensors from HA to avoid starting at 0."""
-        for entity_id, sensor_type, is_electrical, factor in [
-            (self._electrical_entity, self._electrical_type, True,
-             self._electrical_factor),
-            (self._thermal_entity, self._thermal_type, False,
-             self._thermal_factor),
+        for entity_id, is_electrical in [
+            (self._electrical_entity, True),
+            (self._thermal_entity, False),
         ]:
             state = self.hass.states.get(entity_id)
             if state is None or state.state in ("unknown", "unavailable"):
                 continue
 
-            # Auto-detect sensor type from unit_of_measurement if not yet known
-            if is_electrical and self._electrical_type is None:
-                unit = state.attributes.get("unit_of_measurement")
-                self._electrical_type = self._detect_sensor_type_from_unit(unit)
-            elif not is_electrical and self._thermal_type is None:
-                unit = state.attributes.get("unit_of_measurement")
-                self._thermal_type = self._detect_sensor_type_from_unit(unit)
-
             sensor_type = self._electrical_type if is_electrical else self._thermal_type
+            factor = self._electrical_factor if is_electrical else self._thermal_factor
 
             try:
                 value = float(state.state) * factor
@@ -259,28 +237,20 @@ class COPDataCoordinator:
                 continue
 
             if is_electrical:
-                if sensor_type in (SENSOR_TYPE_POWER, SENSOR_TYPE_POWER_W):
-                    if sensor_type == SENSOR_TYPE_POWER_W:
-                        value = value / 1000.0
+                if sensor_type == SENSOR_TYPE_POWER:
                     self._last_electrical_power = value
                     self._last_electrical_power_time = dt_util.utcnow()
                     if self._cumulative_electrical is None:
                         self._cumulative_electrical = 0.0
                 else:
-                    if sensor_type == SENSOR_TYPE_ENERGY_WH:
-                        value = value / 1000.0
                     self._cumulative_electrical = value
             else:
-                if sensor_type in (SENSOR_TYPE_POWER, SENSOR_TYPE_POWER_W):
-                    if sensor_type == SENSOR_TYPE_POWER_W:
-                        value = value / 1000.0
+                if sensor_type == SENSOR_TYPE_POWER:
                     self._last_thermal_power = value
                     self._last_thermal_power_time = dt_util.utcnow()
                     if self._cumulative_thermal is None:
                         self._cumulative_thermal = 0.0
                 else:
-                    if sensor_type == SENSOR_TYPE_ENERGY_WH:
-                        value = value / 1000.0
                     self._cumulative_thermal = value
 
         self._has_real_data = (
@@ -370,11 +340,9 @@ class COPDataCoordinator:
         self.hass.async_create_task(self._async_save_state())
 
     def _process_electrical_value(self, value: float, now: datetime) -> None:
-        """Process a new electrical sensor value."""
-        if self._electrical_type in (SENSOR_TYPE_POWER, SENSOR_TYPE_POWER_W):
-            # Power → integrate to energy (kWh)
-            if self._electrical_type == SENSOR_TYPE_POWER_W:
-                value = value / 1000.0  # W → kW
+        """Process a new electrical sensor value (already converted to kWh or kW by factor)."""
+        if self._electrical_type == SENSOR_TYPE_POWER:
+            # Power (kW) → integrate to energy (kWh) via trapezoid rule
             if self._cumulative_electrical is None:
                 self._cumulative_electrical = 0.0
             if (
@@ -385,7 +353,6 @@ class COPDataCoordinator:
                     now - self._last_electrical_power_time
                 ).total_seconds() / 3600.0
                 if dt_hours > 0 and dt_hours < 1:  # Skip unreasonable gaps
-                    # Trapezoid rule
                     energy = (
                         (self._last_electrical_power + value) / 2.0 * dt_hours
                     )
@@ -393,17 +360,13 @@ class COPDataCoordinator:
             self._last_electrical_power = value
             self._last_electrical_power_time = now
         else:
-            # Energy — use directly (convert Wh → kWh if needed)
-            if self._electrical_type == SENSOR_TYPE_ENERGY_WH:
-                value = value / 1000.0
+            # Energy (kWh) — use directly
             self._cumulative_electrical = value
 
     def _process_thermal_value(self, value: float, now: datetime) -> None:
-        """Process a new thermal sensor value."""
-        if self._thermal_type in (SENSOR_TYPE_POWER, SENSOR_TYPE_POWER_W):
-            # Power → integrate to energy (kWh)
-            if self._thermal_type == SENSOR_TYPE_POWER_W:
-                value = value / 1000.0  # W → kW
+        """Process a new thermal sensor value (already converted to kWh or kW by factor)."""
+        if self._thermal_type == SENSOR_TYPE_POWER:
+            # Power (kW) → integrate to energy (kWh) via trapezoid rule
             if self._cumulative_thermal is None:
                 self._cumulative_thermal = 0.0
             if (
@@ -419,9 +382,7 @@ class COPDataCoordinator:
             self._last_thermal_power = value
             self._last_thermal_power_time = now
         else:
-            # Energy — use directly (convert Wh → kWh if needed)
-            if self._thermal_type == SENSOR_TYPE_ENERGY_WH:
-                value = value / 1000.0
+            # Energy (kWh) — use directly
             self._cumulative_thermal = value
 
     @staticmethod

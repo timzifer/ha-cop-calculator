@@ -7,8 +7,6 @@ PLATFORMS = ["sensor"]
 CONF_NAME = "name"
 CONF_ELECTRICAL_ENTITY = "electrical_entity"
 CONF_THERMAL_ENTITY = "thermal_entity"
-CONF_ELECTRICAL_SENSOR_TYPE = "electrical_sensor_type"
-CONF_THERMAL_SENSOR_TYPE = "thermal_sensor_type"
 CONF_ELECTRICITY_PRICE = "electricity_price"
 CONF_ELECTRICITY_PRICE_ENTITY = "electricity_price_entity"
 CONF_PRICE_TYPE = "price_type"
@@ -24,8 +22,6 @@ CONF_DEFAULT_MODE = "default_mode"
 # Sensor types (resolved internally via auto-detection)
 SENSOR_TYPE_ENERGY = "energy"
 SENSOR_TYPE_POWER = "power"
-SENSOR_TYPE_ENERGY_WH = "energy_wh"
-SENSOR_TYPE_POWER_W = "power_w"
 
 # Unit-to-kWh conversion factors for energy units
 # Maps unit_of_measurement string → (sensor_type, factor_to_kWh_or_kW)
