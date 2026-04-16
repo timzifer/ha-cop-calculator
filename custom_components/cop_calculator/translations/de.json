@@ -7,17 +7,13 @@
         "data": {
           "name": "Name",
           "electrical_entity": "Elektrischer Energiesensor",
-          "electrical_sensor_type": "Typ des elektrischen Sensors",
           "thermal_entity": "Thermischer Energiesensor",
-          "thermal_sensor_type": "Typ des thermischen Sensors",
           "averaging_period": "Mittelungszeitraum"
         },
         "data_description": {
           "name": "Anzeigename für das Wärmepumpen-Gerät",
-          "electrical_entity": "Sensor, der den elektrischen Energieverbrauch (oder die Leistung) der Wärmepumpe misst",
-          "electrical_sensor_type": "Wähle den Sensortyp: kumulative Energie (kWh oder Wh) oder momentane Leistung (kW oder W)",
-          "thermal_entity": "Sensor, der die thermische Energieerzeugung (oder Leistung) der Wärmepumpe misst",
-          "thermal_sensor_type": "Wähle den Sensortyp: kumulative Energie (kWh oder Wh) oder momentane Leistung (kW oder W)",
+          "electrical_entity": "Sensor, der den elektrischen Energieverbrauch (oder die Leistung) der Wärmepumpe misst. Die Einheit (kWh, Wh, kW, W) wird automatisch erkannt.",
+          "thermal_entity": "Sensor, der die thermische Energieerzeugung (oder Leistung) der Wärmepumpe misst. Die Einheit (kWh, Wh, kW, W) wird automatisch erkannt.",
           "averaging_period": "Zeitfenster (in Minuten) für die Berechnung des aktuellen COP. Längere Zeiträume gleichen Verzögerungen zwischen elektrischem Verbrauch und Wärmeabgabe aus."
         }
       },
@@ -86,17 +82,13 @@
         "data": {
           "name": "Name",
           "electrical_entity": "Elektrischer Energiesensor",
-          "electrical_sensor_type": "Typ des elektrischen Sensors",
           "thermal_entity": "Thermischer Energiesensor",
-          "thermal_sensor_type": "Typ des thermischen Sensors",
           "averaging_period": "Mittelungszeitraum"
         },
         "data_description": {
           "name": "Anzeigename für das Wärmepumpen-Gerät",
-          "electrical_entity": "Sensor, der den elektrischen Energieverbrauch (oder die Leistung) der Wärmepumpe misst",
-          "electrical_sensor_type": "Wähle den Sensortyp: kumulative Energie (kWh oder Wh) oder momentane Leistung (kW oder W)",
-          "thermal_entity": "Sensor, der die thermische Energieerzeugung (oder Leistung) der Wärmepumpe misst",
-          "thermal_sensor_type": "Wähle den Sensortyp: kumulative Energie (kWh oder Wh) oder momentane Leistung (kW oder W)",
+          "electrical_entity": "Sensor, der den elektrischen Energieverbrauch (oder die Leistung) der Wärmepumpe misst. Die Einheit wird automatisch erkannt.",
+          "thermal_entity": "Sensor, der die thermische Energieerzeugung (oder Leistung) der Wärmepumpe misst. Die Einheit wird automatisch erkannt.",
           "averaging_period": "Zeitfenster (in Minuten) für die Berechnung des aktuellen COP"
         }
       },
