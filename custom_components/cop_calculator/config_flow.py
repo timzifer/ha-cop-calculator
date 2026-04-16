@@ -157,7 +157,7 @@ def _get_pricing_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             ),
             vol.Optional(
                 CONF_ELECTRICITY_PRICE,
-                default=defaults.get(CONF_ELECTRICITY_PRICE),
+                description={"suggested_value": defaults.get(CONF_ELECTRICITY_PRICE)},
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=0,
@@ -169,7 +169,7 @@ def _get_pricing_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             ),
             vol.Optional(
                 CONF_ELECTRICITY_PRICE_ENTITY,
-                default=defaults.get(CONF_ELECTRICITY_PRICE_ENTITY),
+                description={"suggested_value": defaults.get(CONF_ELECTRICITY_PRICE_ENTITY)},
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor"),
             ),
