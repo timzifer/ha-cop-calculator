@@ -26,13 +26,19 @@ from .const import (
     CONF_MODE_HEATING_STATES,
     CONF_MODE_DHW_STATES,
     CONF_MODE_SIMULTANEOUS_STATES,
+    CONF_DEFAULT_MODE,
     SENSOR_TYPE_ENERGY,
     SENSOR_TYPE_POWER,
+    SENSOR_TYPE_ENERGY_WH,
+    SENSOR_TYPE_POWER_W,
     PRICE_TYPE_NONE,
     PRICE_TYPE_FIXED,
     PRICE_TYPE_SENSOR,
     DEFAULT_NAME,
     DEFAULT_AVERAGING_PERIOD,
+    MODE_HEATING,
+    MODE_DHW,
+    MODE_SIMULTANEOUS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,6 +46,8 @@ _LOGGER = logging.getLogger(__name__)
 SENSOR_TYPE_OPTIONS = [
     selector.SelectOptionDict(value=SENSOR_TYPE_ENERGY, label="Energy (kWh)"),
     selector.SelectOptionDict(value=SENSOR_TYPE_POWER, label="Power (kW)"),
+    selector.SelectOptionDict(value=SENSOR_TYPE_ENERGY_WH, label="Energy (Wh)"),
+    selector.SelectOptionDict(value=SENSOR_TYPE_POWER_W, label="Power (W)"),
 ]
 
 PRICE_TYPE_OPTIONS = [
@@ -49,8 +57,15 @@ PRICE_TYPE_OPTIONS = [
 ]
 
 
-def _get_mode_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
-    """Build schema for the mode step."""
+DEFAULT_MODE_OPTIONS = [
+    selector.SelectOptionDict(value=MODE_HEATING, label="Heating"),
+    selector.SelectOptionDict(value=MODE_DHW, label="Hot Water (DHW)"),
+    selector.SelectOptionDict(value=MODE_SIMULTANEOUS, label="Simultaneous"),
+]
+
+
+def _get_mode_entity_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+    """Build schema for the mode entity step."""
     defaults = defaults or {}
     return vol.Schema(
         {
@@ -60,6 +75,15 @@ def _get_mode_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(),
             ),
+        }
+    )
+
+
+def _get_mode_matching_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+    """Build schema for the mode matching step."""
+    defaults = defaults or {}
+    return vol.Schema(
+        {
             vol.Optional(
                 CONF_MODE_HEATING_STATES,
                 default=defaults.get(CONF_MODE_HEATING_STATES, ""),
@@ -72,6 +96,24 @@ def _get_mode_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_MODE_SIMULTANEOUS_STATES,
                 default=defaults.get(CONF_MODE_SIMULTANEOUS_STATES, ""),
             ): selector.TextSelector(),
+        }
+    )
+
+
+def _get_default_mode_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+    """Build schema for the default mode step."""
+    defaults = defaults or {}
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_DEFAULT_MODE,
+                default=defaults.get(CONF_DEFAULT_MODE, MODE_HEATING),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=DEFAULT_MODE_OPTIONS,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                ),
+            ),
         }
     )
 
@@ -198,31 +240,58 @@ class COPCalculatorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_mode(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """Handle the operating mode configuration step (optional)."""
+        """Handle the operating mode entity selection step."""
+        if user_input is not None:
+            mode_entity = user_input.get(CONF_MODE_ENTITY)
+            self._user_data.update(user_input)
+            if mode_entity:
+                return await self.async_step_mode_matching()
+            return await self.async_step_default_mode()
+
+        return self.async_show_form(
+            step_id="mode",
+            data_schema=_get_mode_entity_schema(),
+        )
+
+    async def async_step_mode_matching(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Handle the mode matching strings step (when entity is selected)."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            mode_entity = user_input.get(CONF_MODE_ENTITY)
-            if mode_entity:
-                heating_states = (
-                    user_input.get(CONF_MODE_HEATING_STATES, "") or ""
-                ).strip()
-                dhw_states = (
-                    user_input.get(CONF_MODE_DHW_STATES, "") or ""
-                ).strip()
-                if not heating_states:
-                    errors["base"] = "no_heating_states"
-                elif not dhw_states:
-                    errors["base"] = "no_dhw_states"
+            heating_states = (
+                user_input.get(CONF_MODE_HEATING_STATES, "") or ""
+            ).strip()
+            dhw_states = (
+                user_input.get(CONF_MODE_DHW_STATES, "") or ""
+            ).strip()
+            if not heating_states:
+                errors["base"] = "no_heating_states"
+            elif not dhw_states:
+                errors["base"] = "no_dhw_states"
 
             if not errors:
                 self._user_data.update(user_input)
                 return await self.async_step_pricing()
 
         return self.async_show_form(
-            step_id="mode",
-            data_schema=_get_mode_schema(),
+            step_id="mode_matching",
+            data_schema=_get_mode_matching_schema(),
             errors=errors,
+        )
+
+    async def async_step_default_mode(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Handle the default mode selection step (when no entity is selected)."""
+        if user_input is not None:
+            self._user_data.update(user_input)
+            return await self.async_step_pricing()
+
+        return self.async_show_form(
+            step_id="default_mode",
+            data_schema=_get_default_mode_schema(),
         )
 
     async def async_step_pricing(
@@ -256,8 +325,12 @@ class COPCalculatorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 elif price_type == PRICE_TYPE_SENSOR:
                     data.pop(CONF_ELECTRICITY_PRICE, None)
 
-                # Clean up unused mode fields
-                if not data.get(CONF_MODE_ENTITY):
+                # Clean up unused mode fields (mutually exclusive paths)
+                if data.get(CONF_MODE_ENTITY):
+                    # Mode entity path: remove default_mode
+                    data.pop(CONF_DEFAULT_MODE, None)
+                else:
+                    # Default mode path: remove entity and matching strings
                     data.pop(CONF_MODE_ENTITY, None)
                     data.pop(CONF_MODE_HEATING_STATES, None)
                     data.pop(CONF_MODE_DHW_STATES, None)
@@ -312,32 +385,63 @@ class COPCalculatorOptionsFlow(config_entries.OptionsFlow):
     async def async_step_mode(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """Handle the operating mode options step (optional)."""
-        errors: dict[str, str] = {}
+        """Handle the operating mode entity selection options step."""
         defaults = {**self._config_entry.data}
 
         if user_input is not None:
             mode_entity = user_input.get(CONF_MODE_ENTITY)
+            self._user_data.update(user_input)
             if mode_entity:
-                heating_states = (
-                    user_input.get(CONF_MODE_HEATING_STATES, "") or ""
-                ).strip()
-                dhw_states = (
-                    user_input.get(CONF_MODE_DHW_STATES, "") or ""
-                ).strip()
-                if not heating_states:
-                    errors["base"] = "no_heating_states"
-                elif not dhw_states:
-                    errors["base"] = "no_dhw_states"
+                return await self.async_step_mode_matching()
+            return await self.async_step_default_mode()
+
+        return self.async_show_form(
+            step_id="mode",
+            data_schema=_get_mode_entity_schema(defaults),
+        )
+
+    async def async_step_mode_matching(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Handle the mode matching strings options step."""
+        errors: dict[str, str] = {}
+        defaults = {**self._config_entry.data}
+
+        if user_input is not None:
+            heating_states = (
+                user_input.get(CONF_MODE_HEATING_STATES, "") or ""
+            ).strip()
+            dhw_states = (
+                user_input.get(CONF_MODE_DHW_STATES, "") or ""
+            ).strip()
+            if not heating_states:
+                errors["base"] = "no_heating_states"
+            elif not dhw_states:
+                errors["base"] = "no_dhw_states"
 
             if not errors:
                 self._user_data.update(user_input)
                 return await self.async_step_pricing()
 
         return self.async_show_form(
-            step_id="mode",
-            data_schema=_get_mode_schema(defaults),
+            step_id="mode_matching",
+            data_schema=_get_mode_matching_schema(defaults),
             errors=errors,
+        )
+
+    async def async_step_default_mode(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Handle the default mode selection options step."""
+        defaults = {**self._config_entry.data}
+
+        if user_input is not None:
+            self._user_data.update(user_input)
+            return await self.async_step_pricing()
+
+        return self.async_show_form(
+            step_id="default_mode",
+            data_schema=_get_default_mode_schema(defaults),
         )
 
     async def async_step_pricing(
@@ -369,8 +473,10 @@ class COPCalculatorOptionsFlow(config_entries.OptionsFlow):
                 elif price_type == PRICE_TYPE_SENSOR:
                     data.pop(CONF_ELECTRICITY_PRICE, None)
 
-                # Clean up unused mode fields
-                if not data.get(CONF_MODE_ENTITY):
+                # Clean up unused mode fields (mutually exclusive paths)
+                if data.get(CONF_MODE_ENTITY):
+                    data.pop(CONF_DEFAULT_MODE, None)
+                else:
                     data.pop(CONF_MODE_ENTITY, None)
                     data.pop(CONF_MODE_HEATING_STATES, None)
                     data.pop(CONF_MODE_DHW_STATES, None)

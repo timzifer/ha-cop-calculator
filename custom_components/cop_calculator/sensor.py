@@ -20,6 +20,7 @@ from .const import (
     DOMAIN,
     CONF_NAME,
     CONF_MODE_ENTITY,
+    CONF_DEFAULT_MODE,
     CONF_PRICE_TYPE,
     PRICE_TYPE_NONE,
     DEFAULT_NAME,
@@ -340,11 +341,22 @@ async def async_setup_entry(
     coordinator: COPDataCoordinator = hass.data[DOMAIN][entry.entry_id]
     name = entry.data.get(CONF_NAME, DEFAULT_NAME)
     price_type = entry.data.get(CONF_PRICE_TYPE, PRICE_TYPE_NONE)
-    mode_enabled = bool(entry.data.get(CONF_MODE_ENTITY))
+    mode_entity = entry.data.get(CONF_MODE_ENTITY)
+    default_mode = entry.data.get(CONF_DEFAULT_MODE)
+    mode_enabled = bool(mode_entity) or bool(default_mode)
 
     all_descriptions: dict[str, dict[str, Any]] = dict(SENSOR_DESCRIPTIONS)
     if mode_enabled:
-        all_descriptions.update(MODE_SENSOR_DESCRIPTIONS)
+        if default_mode:
+            # Only add sensors for the single selected default mode
+            filtered = {
+                k: v for k, v in MODE_SENSOR_DESCRIPTIONS.items()
+                if k.startswith(f"{default_mode}_")
+            }
+            all_descriptions.update(filtered)
+        else:
+            # Mode entity: add sensors for all modes
+            all_descriptions.update(MODE_SENSOR_DESCRIPTIONS)
 
     entities: list[COPSensor] = []
 
