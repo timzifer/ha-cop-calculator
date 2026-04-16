@@ -19,10 +19,13 @@ CONF_MODE_ENTITY = "mode_entity"
 CONF_MODE_HEATING_STATES = "mode_heating_states"
 CONF_MODE_DHW_STATES = "mode_dhw_states"
 CONF_MODE_SIMULTANEOUS_STATES = "mode_simultaneous_states"
+CONF_DEFAULT_MODE = "default_mode"
 
 # Sensor types (resolved internally via auto-detection)
 SENSOR_TYPE_ENERGY = "energy"
 SENSOR_TYPE_POWER = "power"
+SENSOR_TYPE_ENERGY_WH = "energy_wh"
+SENSOR_TYPE_POWER_W = "power_w"
 
 # Unit-to-kWh conversion factors for energy units
 # Maps unit_of_measurement string → (sensor_type, factor_to_kWh_or_kW)
