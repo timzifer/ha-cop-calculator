@@ -58,7 +58,7 @@ def _get_mode_entity_schema(defaults: dict[str, Any] | None = None) -> vol.Schem
         {
             vol.Optional(
                 CONF_MODE_ENTITY,
-                default=defaults.get(CONF_MODE_ENTITY),
+                description={"suggested_value": defaults.get(CONF_MODE_ENTITY)},
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(),
             ),
