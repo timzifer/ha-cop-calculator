@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Configure COP Calculator",
-        "description": "Set up energy monitoring for your heat pump. Select the sensors that measure electrical consumption and thermal production.",
+        "description": "Set up energy monitoring for your heat pump. Select the sensors that measure electrical consumption and thermal production. The unit (kWh, Wh, MWh, kW, W, etc.) is detected automatically.",
         "data": {
           "name": "Name",
           "electrical_entity": "Electrical energy sensor",
@@ -12,8 +12,8 @@
         },
         "data_description": {
           "name": "Display name for the heat pump device",
-          "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump. The unit (kWh, Wh, kW, W) is detected automatically.",
-          "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump. The unit (kWh, Wh, kW, W) is detected automatically.",
+          "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump. The unit is detected automatically.",
+          "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump. The unit is detected automatically.",
           "averaging_period": "Time window (in minutes) for calculating the current COP. Longer periods smooth out delays between electrical input and thermal output."
         }
       },
@@ -78,7 +78,7 @@
     "step": {
       "init": {
         "title": "Configure COP Calculator",
-        "description": "Update energy monitoring settings for your heat pump.",
+        "description": "Update energy monitoring settings for your heat pump. The unit is detected automatically.",
         "data": {
           "name": "Name",
           "electrical_entity": "Electrical energy sensor",
@@ -87,8 +87,8 @@
         },
         "data_description": {
           "name": "Display name for the heat pump device",
-          "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump. The unit is detected automatically.",
-          "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump. The unit is detected automatically.",
+          "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump",
+          "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump",
           "averaging_period": "Time window (in minutes) for calculating the current COP"
         }
       },
