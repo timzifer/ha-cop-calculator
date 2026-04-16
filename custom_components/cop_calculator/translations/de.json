@@ -3,21 +3,17 @@
     "step": {
       "user": {
         "title": "COP Calculator konfigurieren",
-        "description": "Richte die Energieüberwachung für deine Wärmepumpe ein. Wähle die Sensoren aus, die den Stromverbrauch und die Wärmeerzeugung messen.",
+        "description": "Richte die Energieüberwachung für deine Wärmepumpe ein. Wähle die Sensoren aus, die den Stromverbrauch und die Wärmeerzeugung messen. Die Einheit (kWh, Wh, MWh, kW, W, etc.) wird automatisch erkannt.",
         "data": {
           "name": "Name",
           "electrical_entity": "Elektrischer Energiesensor",
-          "electrical_sensor_type": "Typ des elektrischen Sensors",
           "thermal_entity": "Thermischer Energiesensor",
-          "thermal_sensor_type": "Typ des thermischen Sensors",
           "averaging_period": "Mittelungszeitraum"
         },
         "data_description": {
           "name": "Anzeigename für das Wärmepumpen-Gerät",
-          "electrical_entity": "Sensor, der den elektrischen Energieverbrauch (oder die Leistung) der Wärmepumpe misst",
-          "electrical_sensor_type": "Wähle, ob der Sensor kumulative Energie (kWh) oder momentane Leistung (kW) liefert",
-          "thermal_entity": "Sensor, der die thermische Energieerzeugung (oder Leistung) der Wärmepumpe misst",
-          "thermal_sensor_type": "Wähle, ob der Sensor kumulative Energie (kWh) oder momentane Leistung (kW) liefert",
+          "electrical_entity": "Sensor, der den elektrischen Energieverbrauch (oder die Leistung) der Wärmepumpe misst. Die Einheit wird automatisch erkannt.",
+          "thermal_entity": "Sensor, der die thermische Energieerzeugung (oder Leistung) der Wärmepumpe misst. Die Einheit wird automatisch erkannt.",
           "averaging_period": "Zeitfenster (in Minuten) für die Berechnung des aktuellen COP. Längere Zeiträume gleichen Verzögerungen zwischen elektrischem Verbrauch und Wärmeabgabe aus."
         }
       },
@@ -64,21 +60,17 @@
     "step": {
       "init": {
         "title": "COP Calculator konfigurieren",
-        "description": "Aktualisiere die Energieüberwachungs-Einstellungen für deine Wärmepumpe.",
+        "description": "Aktualisiere die Energieüberwachungs-Einstellungen für deine Wärmepumpe. Die Einheit wird automatisch erkannt.",
         "data": {
           "name": "Name",
           "electrical_entity": "Elektrischer Energiesensor",
-          "electrical_sensor_type": "Typ des elektrischen Sensors",
           "thermal_entity": "Thermischer Energiesensor",
-          "thermal_sensor_type": "Typ des thermischen Sensors",
           "averaging_period": "Mittelungszeitraum"
         },
         "data_description": {
           "name": "Anzeigename für das Wärmepumpen-Gerät",
           "electrical_entity": "Sensor, der den elektrischen Energieverbrauch (oder die Leistung) der Wärmepumpe misst",
-          "electrical_sensor_type": "Wähle, ob der Sensor kumulative Energie (kWh) oder momentane Leistung (kW) liefert",
           "thermal_entity": "Sensor, der die thermische Energieerzeugung (oder Leistung) der Wärmepumpe misst",
-          "thermal_sensor_type": "Wähle, ob der Sensor kumulative Energie (kWh) oder momentane Leistung (kW) liefert",
           "averaging_period": "Zeitfenster (in Minuten) für die Berechnung des aktuellen COP"
         }
       },

@@ -16,8 +16,6 @@ from .const import (
     CONF_NAME,
     CONF_ELECTRICAL_ENTITY,
     CONF_THERMAL_ENTITY,
-    CONF_ELECTRICAL_SENSOR_TYPE,
-    CONF_THERMAL_SENSOR_TYPE,
     CONF_ELECTRICITY_PRICE,
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_PRICE_TYPE,
@@ -26,8 +24,6 @@ from .const import (
     CONF_MODE_HEATING_STATES,
     CONF_MODE_DHW_STATES,
     CONF_MODE_SIMULTANEOUS_STATES,
-    SENSOR_TYPE_ENERGY,
-    SENSOR_TYPE_POWER,
     PRICE_TYPE_NONE,
     PRICE_TYPE_FIXED,
     PRICE_TYPE_SENSOR,
@@ -36,11 +32,6 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-SENSOR_TYPE_OPTIONS = [
-    selector.SelectOptionDict(value=SENSOR_TYPE_ENERGY, label="Energy (kWh)"),
-    selector.SelectOptionDict(value=SENSOR_TYPE_POWER, label="Power (kW)"),
-]
 
 PRICE_TYPE_OPTIONS = [
     selector.SelectOptionDict(value=PRICE_TYPE_NONE, label="No price"),
@@ -91,28 +82,10 @@ def _get_user_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 selector.EntitySelectorConfig(domain="sensor"),
             ),
             vol.Required(
-                CONF_ELECTRICAL_SENSOR_TYPE,
-                default=defaults.get(CONF_ELECTRICAL_SENSOR_TYPE, SENSOR_TYPE_ENERGY),
-            ): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=SENSOR_TYPE_OPTIONS,
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                ),
-            ),
-            vol.Required(
                 CONF_THERMAL_ENTITY,
                 default=defaults.get(CONF_THERMAL_ENTITY),
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor"),
-            ),
-            vol.Required(
-                CONF_THERMAL_SENSOR_TYPE,
-                default=defaults.get(CONF_THERMAL_SENSOR_TYPE, SENSOR_TYPE_ENERGY),
-            ): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=SENSOR_TYPE_OPTIONS,
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                ),
             ),
             vol.Optional(
                 CONF_AVERAGING_PERIOD,

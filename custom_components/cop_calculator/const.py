@@ -20,9 +20,24 @@ CONF_MODE_HEATING_STATES = "mode_heating_states"
 CONF_MODE_DHW_STATES = "mode_dhw_states"
 CONF_MODE_SIMULTANEOUS_STATES = "mode_simultaneous_states"
 
-# Sensor types
+# Sensor types (resolved internally via auto-detection)
 SENSOR_TYPE_ENERGY = "energy"
 SENSOR_TYPE_POWER = "power"
+
+# Unit-to-kWh conversion factors for energy units
+# Maps unit_of_measurement string → (sensor_type, factor_to_kWh_or_kW)
+UNIT_CONVERSION_MAP: dict[str, tuple[str, float]] = {
+    # Energy units → factor to convert to kWh
+    "kWh": (SENSOR_TYPE_ENERGY, 1.0),
+    "Wh": (SENSOR_TYPE_ENERGY, 0.001),
+    "MWh": (SENSOR_TYPE_ENERGY, 1000.0),
+    "GJ": (SENSOR_TYPE_ENERGY, 277.778),
+    "MJ": (SENSOR_TYPE_ENERGY, 0.277778),
+    # Power units → factor to convert to kW
+    "kW": (SENSOR_TYPE_POWER, 1.0),
+    "W": (SENSOR_TYPE_POWER, 0.001),
+    "MW": (SENSOR_TYPE_POWER, 1000.0),
+}
 
 # Price types
 PRICE_TYPE_NONE = "none"

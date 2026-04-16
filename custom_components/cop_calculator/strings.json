@@ -3,21 +3,17 @@
     "step": {
       "user": {
         "title": "Configure COP Calculator",
-        "description": "Set up energy monitoring for your heat pump. Select the sensors that measure electrical consumption and thermal production.",
+        "description": "Set up energy monitoring for your heat pump. Select the sensors that measure electrical consumption and thermal production. The unit (kWh, Wh, MWh, kW, W, etc.) is detected automatically.",
         "data": {
           "name": "Name",
           "electrical_entity": "Electrical energy sensor",
-          "electrical_sensor_type": "Electrical sensor type",
           "thermal_entity": "Thermal energy sensor",
-          "thermal_sensor_type": "Thermal sensor type",
           "averaging_period": "Averaging period"
         },
         "data_description": {
           "name": "Display name for the heat pump device",
-          "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump",
-          "electrical_sensor_type": "Choose whether the sensor reports cumulative energy (kWh) or instantaneous power (kW)",
-          "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump",
-          "thermal_sensor_type": "Choose whether the sensor reports cumulative energy (kWh) or instantaneous power (kW)",
+          "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump. The unit is detected automatically.",
+          "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump. The unit is detected automatically.",
           "averaging_period": "Time window (in minutes) for calculating the current COP. Longer periods smooth out delays between electrical input and thermal output."
         }
       },
@@ -64,21 +60,17 @@
     "step": {
       "init": {
         "title": "Configure COP Calculator",
-        "description": "Update energy monitoring settings for your heat pump.",
+        "description": "Update energy monitoring settings for your heat pump. The unit is detected automatically.",
         "data": {
           "name": "Name",
           "electrical_entity": "Electrical energy sensor",
-          "electrical_sensor_type": "Electrical sensor type",
           "thermal_entity": "Thermal energy sensor",
-          "thermal_sensor_type": "Thermal sensor type",
           "averaging_period": "Averaging period"
         },
         "data_description": {
           "name": "Display name for the heat pump device",
           "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump",
-          "electrical_sensor_type": "Choose whether the sensor reports cumulative energy (kWh) or instantaneous power (kW)",
           "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump",
-          "thermal_sensor_type": "Choose whether the sensor reports cumulative energy (kWh) or instantaneous power (kW)",
           "averaging_period": "Time window (in minutes) for calculating the current COP"
         }
       },
