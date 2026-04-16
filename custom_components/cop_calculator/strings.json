@@ -7,34 +7,48 @@
         "data": {
           "name": "Name",
           "electrical_entity": "Electrical energy sensor",
-          "electrical_sensor_type": "Electrical sensor type",
           "thermal_entity": "Thermal energy sensor",
-          "thermal_sensor_type": "Thermal sensor type",
           "averaging_period": "Averaging period"
         },
         "data_description": {
           "name": "Display name for the heat pump device",
-          "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump",
-          "electrical_sensor_type": "Choose whether the sensor reports cumulative energy (kWh) or instantaneous power (kW)",
-          "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump",
-          "thermal_sensor_type": "Choose whether the sensor reports cumulative energy (kWh) or instantaneous power (kW)",
+          "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump. The unit (kWh, Wh, kW, W) is detected automatically.",
+          "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump. The unit (kWh, Wh, kW, W) is detected automatically.",
           "averaging_period": "Time window (in minutes) for calculating the current COP. Longer periods smooth out delays between electrical input and thermal output."
         }
       },
       "mode": {
         "title": "Operating Mode (Optional)",
-        "description": "Optionally configure a mode sensor to track COP separately for heating, hot water (DHW), and simultaneous operation. Leave the mode sensor empty to skip.",
+        "description": "Optionally configure a mode sensor to track COP separately by operating mode. Leave empty to select a fixed default mode instead.",
         "data": {
-          "mode_entity": "Operating mode sensor",
+          "mode_entity": "Operating mode sensor"
+        },
+        "data_description": {
+          "mode_entity": "Entity that indicates the current operating mode of your heat pump (e.g., an input_select or sensor)"
+        }
+      },
+      "mode_matching": {
+        "title": "Mode Matching Strings",
+        "description": "Define which state values correspond to each operating mode.",
+        "data": {
           "mode_heating_states": "Heating mode state values",
           "mode_dhw_states": "Hot water (DHW) mode state values",
           "mode_simultaneous_states": "Simultaneous mode state values"
         },
         "data_description": {
-          "mode_entity": "Entity that indicates the current operating mode of your heat pump (e.g., an input_select or sensor)",
           "mode_heating_states": "Comma-separated state values that indicate heating mode (e.g. 'Heizen, heating')",
           "mode_dhw_states": "Comma-separated state values that indicate hot water/DHW mode (e.g. 'Warmwasser, dhw')",
           "mode_simultaneous_states": "Comma-separated state values that indicate simultaneous heating + DHW (e.g. 'Heizen+WW, simultaneous'). Leave empty if not applicable."
+        }
+      },
+      "default_mode": {
+        "title": "Default Operating Mode",
+        "description": "Select the default operating mode. All energy will be attributed to this mode.",
+        "data": {
+          "default_mode": "Default mode"
+        },
+        "data_description": {
+          "default_mode": "The operating mode to attribute all energy to"
         }
       },
       "pricing": {
@@ -68,34 +82,48 @@
         "data": {
           "name": "Name",
           "electrical_entity": "Electrical energy sensor",
-          "electrical_sensor_type": "Electrical sensor type",
           "thermal_entity": "Thermal energy sensor",
-          "thermal_sensor_type": "Thermal sensor type",
           "averaging_period": "Averaging period"
         },
         "data_description": {
           "name": "Display name for the heat pump device",
-          "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump",
-          "electrical_sensor_type": "Choose whether the sensor reports cumulative energy (kWh) or instantaneous power (kW)",
-          "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump",
-          "thermal_sensor_type": "Choose whether the sensor reports cumulative energy (kWh) or instantaneous power (kW)",
+          "electrical_entity": "Sensor that measures the electrical energy consumption (or power) of the heat pump. The unit is detected automatically.",
+          "thermal_entity": "Sensor that measures the thermal energy production (or power) of the heat pump. The unit is detected automatically.",
           "averaging_period": "Time window (in minutes) for calculating the current COP"
         }
       },
       "mode": {
         "title": "Operating Mode (Optional)",
-        "description": "Update operating mode settings for separate COP tracking.",
+        "description": "Update operating mode settings for separate COP tracking. Leave empty to select a fixed default mode.",
         "data": {
-          "mode_entity": "Operating mode sensor",
+          "mode_entity": "Operating mode sensor"
+        },
+        "data_description": {
+          "mode_entity": "Entity that indicates the current operating mode of your heat pump"
+        }
+      },
+      "mode_matching": {
+        "title": "Mode Matching Strings",
+        "description": "Update the state values that correspond to each operating mode.",
+        "data": {
           "mode_heating_states": "Heating mode state values",
           "mode_dhw_states": "Hot water (DHW) mode state values",
           "mode_simultaneous_states": "Simultaneous mode state values"
         },
         "data_description": {
-          "mode_entity": "Entity that indicates the current operating mode of your heat pump",
           "mode_heating_states": "Comma-separated state values that indicate heating mode",
           "mode_dhw_states": "Comma-separated state values that indicate hot water/DHW mode",
           "mode_simultaneous_states": "Comma-separated state values that indicate simultaneous heating + DHW"
+        }
+      },
+      "default_mode": {
+        "title": "Default Operating Mode",
+        "description": "Select the default operating mode. All energy will be attributed to this mode.",
+        "data": {
+          "default_mode": "Default mode"
+        },
+        "data_description": {
+          "default_mode": "The operating mode to attribute all energy to"
         }
       },
       "pricing": {

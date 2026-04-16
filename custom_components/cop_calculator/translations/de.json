@@ -7,34 +7,48 @@
         "data": {
           "name": "Name",
           "electrical_entity": "Elektrischer Energiesensor",
-          "electrical_sensor_type": "Typ des elektrischen Sensors",
           "thermal_entity": "Thermischer Energiesensor",
-          "thermal_sensor_type": "Typ des thermischen Sensors",
           "averaging_period": "Mittelungszeitraum"
         },
         "data_description": {
           "name": "Anzeigename für das Wärmepumpen-Gerät",
-          "electrical_entity": "Sensor, der den elektrischen Energieverbrauch (oder die Leistung) der Wärmepumpe misst",
-          "electrical_sensor_type": "Wähle, ob der Sensor kumulative Energie (kWh) oder momentane Leistung (kW) liefert",
-          "thermal_entity": "Sensor, der die thermische Energieerzeugung (oder Leistung) der Wärmepumpe misst",
-          "thermal_sensor_type": "Wähle, ob der Sensor kumulative Energie (kWh) oder momentane Leistung (kW) liefert",
+          "electrical_entity": "Sensor, der den elektrischen Energieverbrauch (oder die Leistung) der Wärmepumpe misst. Die Einheit (kWh, Wh, kW, W) wird automatisch erkannt.",
+          "thermal_entity": "Sensor, der die thermische Energieerzeugung (oder Leistung) der Wärmepumpe misst. Die Einheit (kWh, Wh, kW, W) wird automatisch erkannt.",
           "averaging_period": "Zeitfenster (in Minuten) für die Berechnung des aktuellen COP. Längere Zeiträume gleichen Verzögerungen zwischen elektrischem Verbrauch und Wärmeabgabe aus."
         }
       },
       "mode": {
         "title": "Betriebsmodus (Optional)",
-        "description": "Optional: Konfiguriere einen Betriebsmodus-Sensor, um COP getrennt für Heizung, Warmwasser (WW) und Simultanbetrieb zu berechnen. Lass den Modus-Sensor leer, um diesen Schritt zu überspringen.",
+        "description": "Optional: Konfiguriere einen Betriebsmodus-Sensor, um COP getrennt nach Betriebsmodus zu berechnen. Leer lassen, um stattdessen einen festen Standard-Modus auszuwählen.",
         "data": {
-          "mode_entity": "Betriebsmodus-Sensor",
+          "mode_entity": "Betriebsmodus-Sensor"
+        },
+        "data_description": {
+          "mode_entity": "Entität, die den aktuellen Betriebsmodus der Wärmepumpe anzeigt (z.B. ein input_select oder Sensor)"
+        }
+      },
+      "mode_matching": {
+        "title": "Modus-Zuordnung",
+        "description": "Definiere, welche Zustandswerte den einzelnen Betriebsmodi entsprechen.",
+        "data": {
           "mode_heating_states": "Zustandswerte für Heizbetrieb",
           "mode_dhw_states": "Zustandswerte für Warmwasserbetrieb",
           "mode_simultaneous_states": "Zustandswerte für Simultanbetrieb"
         },
         "data_description": {
-          "mode_entity": "Entität, die den aktuellen Betriebsmodus der Wärmepumpe anzeigt (z.B. ein input_select oder Sensor)",
           "mode_heating_states": "Kommagetrennte Zustandswerte für den Heizbetrieb (z.B. 'Heizen, heating')",
           "mode_dhw_states": "Kommagetrennte Zustandswerte für den Warmwasserbetrieb (z.B. 'Warmwasser, dhw')",
           "mode_simultaneous_states": "Kommagetrennte Zustandswerte für den Simultanbetrieb (z.B. 'Heizen+WW, simultaneous'). Leer lassen, wenn nicht zutreffend."
+        }
+      },
+      "default_mode": {
+        "title": "Standard-Betriebsmodus",
+        "description": "Wähle den Standard-Betriebsmodus. Alle Energie wird diesem Modus zugeordnet.",
+        "data": {
+          "default_mode": "Standard-Modus"
+        },
+        "data_description": {
+          "default_mode": "Der Betriebsmodus, dem alle Energie zugeordnet wird"
         }
       },
       "pricing": {
@@ -68,34 +82,48 @@
         "data": {
           "name": "Name",
           "electrical_entity": "Elektrischer Energiesensor",
-          "electrical_sensor_type": "Typ des elektrischen Sensors",
           "thermal_entity": "Thermischer Energiesensor",
-          "thermal_sensor_type": "Typ des thermischen Sensors",
           "averaging_period": "Mittelungszeitraum"
         },
         "data_description": {
           "name": "Anzeigename für das Wärmepumpen-Gerät",
-          "electrical_entity": "Sensor, der den elektrischen Energieverbrauch (oder die Leistung) der Wärmepumpe misst",
-          "electrical_sensor_type": "Wähle, ob der Sensor kumulative Energie (kWh) oder momentane Leistung (kW) liefert",
-          "thermal_entity": "Sensor, der die thermische Energieerzeugung (oder Leistung) der Wärmepumpe misst",
-          "thermal_sensor_type": "Wähle, ob der Sensor kumulative Energie (kWh) oder momentane Leistung (kW) liefert",
+          "electrical_entity": "Sensor, der den elektrischen Energieverbrauch (oder die Leistung) der Wärmepumpe misst. Die Einheit wird automatisch erkannt.",
+          "thermal_entity": "Sensor, der die thermische Energieerzeugung (oder Leistung) der Wärmepumpe misst. Die Einheit wird automatisch erkannt.",
           "averaging_period": "Zeitfenster (in Minuten) für die Berechnung des aktuellen COP"
         }
       },
       "mode": {
         "title": "Betriebsmodus (Optional)",
-        "description": "Betriebsmodus-Einstellungen für getrennte COP-Berechnung aktualisieren.",
+        "description": "Betriebsmodus-Einstellungen für getrennte COP-Berechnung aktualisieren. Leer lassen, um einen festen Standard-Modus auszuwählen.",
         "data": {
-          "mode_entity": "Betriebsmodus-Sensor",
+          "mode_entity": "Betriebsmodus-Sensor"
+        },
+        "data_description": {
+          "mode_entity": "Entität, die den aktuellen Betriebsmodus der Wärmepumpe anzeigt"
+        }
+      },
+      "mode_matching": {
+        "title": "Modus-Zuordnung",
+        "description": "Zustandswerte für die einzelnen Betriebsmodi aktualisieren.",
+        "data": {
           "mode_heating_states": "Zustandswerte für Heizbetrieb",
           "mode_dhw_states": "Zustandswerte für Warmwasserbetrieb",
           "mode_simultaneous_states": "Zustandswerte für Simultanbetrieb"
         },
         "data_description": {
-          "mode_entity": "Entität, die den aktuellen Betriebsmodus der Wärmepumpe anzeigt",
           "mode_heating_states": "Kommagetrennte Zustandswerte für den Heizbetrieb",
           "mode_dhw_states": "Kommagetrennte Zustandswerte für den Warmwasserbetrieb",
           "mode_simultaneous_states": "Kommagetrennte Zustandswerte für den Simultanbetrieb"
+        }
+      },
+      "default_mode": {
+        "title": "Standard-Betriebsmodus",
+        "description": "Wähle den Standard-Betriebsmodus. Alle Energie wird diesem Modus zugeordnet.",
+        "data": {
+          "default_mode": "Standard-Modus"
+        },
+        "data_description": {
+          "default_mode": "Der Betriebsmodus, dem alle Energie zugeordnet wird"
         }
       },
       "pricing": {

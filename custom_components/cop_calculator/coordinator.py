@@ -30,7 +30,11 @@ from .const import (
     CONF_MODE_HEATING_STATES,
     CONF_MODE_DHW_STATES,
     CONF_MODE_SIMULTANEOUS_STATES,
+    CONF_DEFAULT_MODE,
+    SENSOR_TYPE_ENERGY,
     SENSOR_TYPE_POWER,
+    SENSOR_TYPE_POWER_W,
+    SENSOR_TYPE_ENERGY_WH,
     PRICE_TYPE_FIXED,
     PRICE_TYPE_SENSOR,
     PERIOD_DAILY,
@@ -50,6 +54,14 @@ _LOGGER = logging.getLogger(__name__)
 STORAGE_VERSION = 1
 STORAGE_KEY_PREFIX = f"{DOMAIN}.coordinator"
 
+# Mapping from HA unit_of_measurement to internal sensor type
+_UNIT_TO_SENSOR_TYPE: dict[str, str] = {
+    "kWh": SENSOR_TYPE_ENERGY,
+    "Wh": SENSOR_TYPE_ENERGY_WH,
+    "kW": SENSOR_TYPE_POWER,
+    "W": SENSOR_TYPE_POWER_W,
+}
+
 
 class COPDataCoordinator:
     """Coordinator that tracks energy data and calculates COP values."""
@@ -66,8 +78,9 @@ class COPDataCoordinator:
         # Configuration
         self._electrical_entity: str = entry.data[CONF_ELECTRICAL_ENTITY]
         self._thermal_entity: str = entry.data[CONF_THERMAL_ENTITY]
-        self._electrical_type: str = entry.data[CONF_ELECTRICAL_SENSOR_TYPE]
-        self._thermal_type: str = entry.data[CONF_THERMAL_SENSOR_TYPE]
+        # Sensor types: read from config (backward compat) or auto-detect at runtime
+        self._electrical_type: str | None = entry.data.get(CONF_ELECTRICAL_SENSOR_TYPE)
+        self._thermal_type: str | None = entry.data.get(CONF_THERMAL_SENSOR_TYPE)
         self._averaging_period: int = entry.data.get(
             CONF_AVERAGING_PERIOD, DEFAULT_AVERAGING_PERIOD
         )
@@ -77,6 +90,7 @@ class COPDataCoordinator:
 
         # Mode configuration
         self._mode_entity: str | None = entry.data.get(CONF_MODE_ENTITY) or None
+        self._default_mode: str | None = entry.data.get(CONF_DEFAULT_MODE) or None
         self._mode_heating_states: list[str] = self._parse_state_list(
             entry.data.get(CONF_MODE_HEATING_STATES, "")
         )
@@ -86,7 +100,7 @@ class COPDataCoordinator:
         self._mode_simultaneous_states: list[str] = self._parse_state_list(
             entry.data.get(CONF_MODE_SIMULTANEOUS_STATES, "")
         )
-        self._mode_enabled: bool = bool(self._mode_entity)
+        self._mode_enabled: bool = bool(self._mode_entity) or bool(self._default_mode)
         self._all_modes: tuple[str, ...] = (
             MODE_HEATING, MODE_DHW, MODE_SIMULTANEOUS
         )
@@ -161,35 +175,59 @@ class COPDataCoordinator:
         if self._has_real_data:
             self._update_data()
 
+    @staticmethod
+    def _detect_sensor_type_from_unit(unit: str | None) -> str:
+        """Detect internal sensor type from a HA unit_of_measurement string."""
+        return _UNIT_TO_SENSOR_TYPE.get(unit or "", SENSOR_TYPE_ENERGY)
+
     def _read_initial_state(self) -> None:
         """Read current state of input sensors from HA to avoid starting at 0."""
-        for entity_id, sensor_type, is_electrical in [
-            (self._electrical_entity, self._electrical_type, True),
-            (self._thermal_entity, self._thermal_type, False),
+        for entity_id, is_electrical in [
+            (self._electrical_entity, True),
+            (self._thermal_entity, False),
         ]:
             state = self.hass.states.get(entity_id)
             if state is None or state.state in ("unknown", "unavailable"):
                 continue
+
+            # Auto-detect sensor type from unit_of_measurement if not yet known
+            if is_electrical and self._electrical_type is None:
+                unit = state.attributes.get("unit_of_measurement")
+                self._electrical_type = self._detect_sensor_type_from_unit(unit)
+            elif not is_electrical and self._thermal_type is None:
+                unit = state.attributes.get("unit_of_measurement")
+                self._thermal_type = self._detect_sensor_type_from_unit(unit)
+
+            sensor_type = self._electrical_type if is_electrical else self._thermal_type
+
             try:
                 value = float(state.state)
             except (ValueError, TypeError):
                 continue
 
             if is_electrical:
-                if sensor_type == SENSOR_TYPE_POWER:
+                if sensor_type in (SENSOR_TYPE_POWER, SENSOR_TYPE_POWER_W):
+                    if sensor_type == SENSOR_TYPE_POWER_W:
+                        value = value / 1000.0
                     self._last_electrical_power = value
                     self._last_electrical_power_time = dt_util.utcnow()
                     if self._cumulative_electrical is None:
                         self._cumulative_electrical = 0.0
                 else:
+                    if sensor_type == SENSOR_TYPE_ENERGY_WH:
+                        value = value / 1000.0
                     self._cumulative_electrical = value
             else:
-                if sensor_type == SENSOR_TYPE_POWER:
+                if sensor_type in (SENSOR_TYPE_POWER, SENSOR_TYPE_POWER_W):
+                    if sensor_type == SENSOR_TYPE_POWER_W:
+                        value = value / 1000.0
                     self._last_thermal_power = value
                     self._last_thermal_power_time = dt_util.utcnow()
                     if self._cumulative_thermal is None:
                         self._cumulative_thermal = 0.0
                 else:
+                    if sensor_type == SENSOR_TYPE_ENERGY_WH:
+                        value = value / 1000.0
                     self._cumulative_thermal = value
 
         self._has_real_data = (
@@ -248,8 +286,15 @@ class COPDataCoordinator:
         now = dt_util.utcnow()
 
         if entity_id == self._electrical_entity:
+            # Auto-detect sensor type on first state change if not yet known
+            if self._electrical_type is None:
+                unit = new_state.attributes.get("unit_of_measurement")
+                self._electrical_type = self._detect_sensor_type_from_unit(unit)
             self._process_electrical_value(value, now)
         elif entity_id == self._thermal_entity:
+            if self._thermal_type is None:
+                unit = new_state.attributes.get("unit_of_measurement")
+                self._thermal_type = self._detect_sensor_type_from_unit(unit)
             self._process_thermal_value(value, now)
 
         # Only process data once we have values from both sensors
@@ -272,8 +317,10 @@ class COPDataCoordinator:
 
     def _process_electrical_value(self, value: float, now: datetime) -> None:
         """Process a new electrical sensor value."""
-        if self._electrical_type == SENSOR_TYPE_POWER:
-            # Power (kW) → integrate to energy (kWh)
+        if self._electrical_type in (SENSOR_TYPE_POWER, SENSOR_TYPE_POWER_W):
+            # Power → integrate to energy (kWh)
+            if self._electrical_type == SENSOR_TYPE_POWER_W:
+                value = value / 1000.0  # W → kW
             if self._cumulative_electrical is None:
                 self._cumulative_electrical = 0.0
             if (
@@ -292,13 +339,17 @@ class COPDataCoordinator:
             self._last_electrical_power = value
             self._last_electrical_power_time = now
         else:
-            # Energy (kWh) — use directly
+            # Energy — use directly (convert Wh → kWh if needed)
+            if self._electrical_type == SENSOR_TYPE_ENERGY_WH:
+                value = value / 1000.0
             self._cumulative_electrical = value
 
     def _process_thermal_value(self, value: float, now: datetime) -> None:
         """Process a new thermal sensor value."""
-        if self._thermal_type == SENSOR_TYPE_POWER:
-            # Power (kW) → integrate to energy (kWh)
+        if self._thermal_type in (SENSOR_TYPE_POWER, SENSOR_TYPE_POWER_W):
+            # Power → integrate to energy (kWh)
+            if self._thermal_type == SENSOR_TYPE_POWER_W:
+                value = value / 1000.0  # W → kW
             if self._cumulative_thermal is None:
                 self._cumulative_thermal = 0.0
             if (
@@ -314,7 +365,9 @@ class COPDataCoordinator:
             self._last_thermal_power = value
             self._last_thermal_power_time = now
         else:
-            # Energy (kWh) — use directly
+            # Energy — use directly (convert Wh → kWh if needed)
+            if self._thermal_type == SENSOR_TYPE_ENERGY_WH:
+                value = value / 1000.0
             self._cumulative_thermal = value
 
     @staticmethod
@@ -326,7 +379,11 @@ class COPDataCoordinator:
 
     def _resolve_current_mode(self) -> str:
         """Read the mode sensor and return the internal mode identifier."""
-        if not self._mode_enabled or not self._mode_entity:
+        if not self._mode_enabled:
+            return MODE_UNKNOWN
+        if self._default_mode:
+            return self._default_mode
+        if not self._mode_entity:
             return MODE_UNKNOWN
         state = self.hass.states.get(self._mode_entity)
         if state is None or state.state in ("unknown", "unavailable"):
@@ -745,8 +802,9 @@ class COPDataCoordinator:
         self.entry = entry
         self._electrical_entity = entry.data[CONF_ELECTRICAL_ENTITY]
         self._thermal_entity = entry.data[CONF_THERMAL_ENTITY]
-        self._electrical_type = entry.data[CONF_ELECTRICAL_SENSOR_TYPE]
-        self._thermal_type = entry.data[CONF_THERMAL_SENSOR_TYPE]
+        # Sensor types: backward compat from config or auto-detect at runtime
+        self._electrical_type = entry.data.get(CONF_ELECTRICAL_SENSOR_TYPE)
+        self._thermal_type = entry.data.get(CONF_THERMAL_SENSOR_TYPE)
         self._averaging_period = entry.data.get(
             CONF_AVERAGING_PERIOD, DEFAULT_AVERAGING_PERIOD
         )
@@ -756,6 +814,7 @@ class COPDataCoordinator:
 
         # Mode configuration
         self._mode_entity = entry.data.get(CONF_MODE_ENTITY) or None
+        self._default_mode = entry.data.get(CONF_DEFAULT_MODE) or None
         self._mode_heating_states = self._parse_state_list(
             entry.data.get(CONF_MODE_HEATING_STATES, "")
         )
@@ -765,7 +824,7 @@ class COPDataCoordinator:
         self._mode_simultaneous_states = self._parse_state_list(
             entry.data.get(CONF_MODE_SIMULTANEOUS_STATES, "")
         )
-        self._mode_enabled = bool(self._mode_entity)
+        self._mode_enabled = bool(self._mode_entity) or bool(self._default_mode)
 
         # Re-setup state listeners
         for unsub in self._unsub_state_listeners:
