@@ -40,6 +40,8 @@ from .const import (
     PERIOD_YEARLY,
     PERIOD_TOTAL,
     DEFAULT_AVERAGING_PERIOD,
+    IDLE_POWER_THRESHOLD_KW,
+    MAX_SAMPLE_GAP_S,
     MODE_HEATING,
     MODE_DHW,
     MODE_SIMULTANEOUS,
@@ -123,6 +125,11 @@ class COPDataCoordinator:
             m: deque() for m in self._all_modes
         }
 
+        # Mode attribution consumes growth of the (gated) active counters, so
+        # standby drift is excluded from per-mode totals as well.
+        self._mode_active_baseline_elec: float = 0.0
+        self._mode_active_baseline_therm: float = 0.0
+
         # Previous cumulative values for delta computation
         self._prev_cumulative_electrical: float | None = None
         self._prev_cumulative_thermal: float | None = None
@@ -141,11 +148,26 @@ class COPDataCoordinator:
         self._cumulative_thermal: float | None = None
 
         # Period start values: {period: (electrical_start, thermal_start)}
+        # These track raw cumulative values and back the energy display sensors.
         self._period_starts: dict[str, tuple[float, float]] = {}
 
         # Total start values (never reset)
         self._total_electrical_start: float | None = None
         self._total_thermal_start: float | None = None
+
+        # "Active" counters – only incremented while the device is in real
+        # operation (electrical power above IDLE_POWER_THRESHOLD_KW). COP
+        # calculations are derived from these so standby draw does not drift
+        # the long-term COP toward 0.
+        self._active_cumulative_electrical: float = 0.0
+        self._active_cumulative_thermal: float = 0.0
+        self._active_period_starts: dict[str, tuple[float, float]] = {}
+        self._active_total_electrical_start: float | None = None
+        self._active_total_thermal_start: float | None = None
+
+        # Tracking of the previous raw cumulative sample for delta/power
+        # computation (used by the active counters and the mode attribution).
+        self._prev_sample_time: datetime | None = None
 
         # Track whether we have received real data from sensors
         self._has_real_data: bool = False
@@ -330,6 +352,7 @@ class COPDataCoordinator:
             self._has_real_data = True
             self._initialize_period_starts()
 
+        self._update_active_counters(now)
         self._update_samples(now)
         if self._mode_enabled:
             self._attribute_energy_to_mode(now)
@@ -412,6 +435,57 @@ class COPDataCoordinator:
             return MODE_SIMULTANEOUS
         return MODE_UNKNOWN
 
+    def _update_active_counters(self, now: datetime) -> None:
+        """Increment active-energy counters when the device is in real operation.
+
+        Standby draw (electrical power below ``IDLE_POWER_THRESHOLD_KW``) is
+        excluded so that long-term COPs do not slowly drift toward 0 while the
+        heat pump is idle. Sample gaps and negative deltas (sensor resets) are
+        treated as data outages and discarded.
+        """
+        electrical = self._cumulative_electrical
+        thermal = self._cumulative_thermal
+        if electrical is None or thermal is None:
+            return
+
+        prev_elec = self._prev_cumulative_electrical
+        prev_therm = self._prev_cumulative_thermal
+        prev_time = self._prev_sample_time
+
+        # First sample after startup: only set baseline.
+        if prev_elec is None or prev_therm is None or prev_time is None:
+            self._prev_cumulative_electrical = electrical
+            self._prev_cumulative_thermal = thermal
+            self._prev_sample_time = now
+            return
+
+        delta_t_s = (now - prev_time).total_seconds()
+        delta_elec = electrical - prev_elec
+        delta_therm = thermal - prev_therm
+
+        # Always advance the previous-sample baseline so the next call has a
+        # clean reference, even when this sample is discarded.
+        self._prev_cumulative_electrical = electrical
+        self._prev_cumulative_thermal = thermal
+        self._prev_sample_time = now
+
+        # Discard implausible samples: zero/negative gap, gaps larger than
+        # MAX_SAMPLE_GAP_S (HA was offline / sensor stalled), or negative
+        # deltas (cumulative sensor reset).
+        if delta_t_s <= 0 or delta_t_s > MAX_SAMPLE_GAP_S:
+            return
+        if delta_elec < 0 or delta_therm < 0:
+            return
+
+        # Only count this delta when the device was actually running.
+        delta_t_h = delta_t_s / 3600.0
+        elec_power_kw = delta_elec / delta_t_h if delta_t_h > 0 else 0.0
+        if elec_power_kw < IDLE_POWER_THRESHOLD_KW:
+            return
+
+        self._active_cumulative_electrical += delta_elec
+        self._active_cumulative_thermal += delta_therm
+
     def _attribute_energy_to_mode(self, now: datetime) -> None:
         """Attribute energy deltas to the current operating mode."""
         electrical = self._cumulative_electrical
@@ -419,16 +493,21 @@ class COPDataCoordinator:
         if electrical is None or thermal is None:
             return
 
-        # On first call, just record the baseline
-        if self._prev_cumulative_electrical is None:
-            self._prev_cumulative_electrical = electrical
-            self._prev_cumulative_thermal = thermal
-            return
+        # _update_active_counters owns _prev_cumulative_* and runs first, so we
+        # can derive the per-state-change delta from the active-counter growth
+        # this tick (which is 0 during idle, automatically gating mode energy
+        # the same way long-term COPs are gated).
+        elec_delta = self._active_cumulative_electrical - (
+            self._mode_active_baseline_elec
+        )
+        therm_delta = self._active_cumulative_thermal - (
+            self._mode_active_baseline_therm
+        )
+        self._mode_active_baseline_elec = self._active_cumulative_electrical
+        self._mode_active_baseline_therm = self._active_cumulative_thermal
 
-        elec_delta = max(0.0, electrical - self._prev_cumulative_electrical)
-        therm_delta = max(0.0, thermal - self._prev_cumulative_thermal)
-        self._prev_cumulative_electrical = electrical
-        self._prev_cumulative_thermal = thermal
+        if elec_delta < 0 or therm_delta < 0:
+            return
 
         mode = self._resolve_current_mode()
 
@@ -457,15 +536,28 @@ class COPDataCoordinator:
             self._total_electrical_start = electrical
         if self._total_thermal_start is None:
             self._total_thermal_start = thermal
+        if self._active_total_electrical_start is None:
+            self._active_total_electrical_start = self._active_cumulative_electrical
+        if self._active_total_thermal_start is None:
+            self._active_total_thermal_start = self._active_cumulative_thermal
 
         for period in (PERIOD_DAILY, PERIOD_WEEKLY, PERIOD_MONTHLY, PERIOD_YEARLY):
             if period not in self._period_starts:
                 self._period_starts[period] = (electrical, thermal)
+            if period not in self._active_period_starts:
+                self._active_period_starts[period] = (
+                    self._active_cumulative_electrical,
+                    self._active_cumulative_thermal,
+                )
 
     def _update_samples(self, now: datetime) -> None:
-        """Update the sliding window of samples."""
+        """Update the sliding window of samples (active energy only)."""
         self._samples.append(
-            (now, self._cumulative_electrical, self._cumulative_thermal)
+            (
+                now,
+                self._active_cumulative_electrical,
+                self._active_cumulative_thermal,
+            )
         )
 
         # Remove samples outside the averaging window
@@ -497,8 +589,14 @@ class COPDataCoordinator:
     def _calculate_cop(
         self, thermal_delta: float, electrical_delta: float
     ) -> float | None:
-        """Calculate COP from energy deltas."""
-        if electrical_delta <= 0:
+        """Calculate COP from energy deltas.
+
+        Returns ``None`` (sensor unavailable) when there is not enough
+        operational data yet — either no electrical or no thermal energy was
+        recorded since the period start. This prevents the displayed COP from
+        showing ``0`` while the device is idle or freshly reset.
+        """
+        if electrical_delta <= 0 or thermal_delta <= 0:
             return None
         cop = thermal_delta / electrical_delta
         # Sanity check: COP should be between 0 and ~15
@@ -520,12 +618,24 @@ class COPDataCoordinator:
             self._total_electrical_start = electrical
         if self._total_thermal_start is None:
             self._total_thermal_start = thermal
+        if self._active_total_electrical_start is None:
+            self._active_total_electrical_start = self._active_cumulative_electrical
+        if self._active_total_thermal_start is None:
+            self._active_total_thermal_start = self._active_cumulative_thermal
 
         for period in (PERIOD_DAILY, PERIOD_WEEKLY, PERIOD_MONTHLY, PERIOD_YEARLY):
             if period not in self._period_starts:
                 self._period_starts[period] = (electrical, thermal)
+            if period not in self._active_period_starts:
+                self._active_period_starts[period] = (
+                    self._active_cumulative_electrical,
+                    self._active_cumulative_thermal,
+                )
 
-        # Current COP (sliding window average)
+        active_elec = self._active_cumulative_electrical
+        active_therm = self._active_cumulative_thermal
+
+        # Current COP (sliding window average over active energy only)
         cop_current = None
         if len(self._samples) >= 2:
             oldest = self._samples[0]
@@ -534,7 +644,7 @@ class COPDataCoordinator:
             therm_delta = newest[2] - oldest[2]
             cop_current = self._calculate_cop(therm_delta, elec_delta)
 
-        # Period COPs
+        # Raw period deltas back the energy display sensors (include standby).
         period_data: dict[str, tuple[float, float]] = {}
         for period in (PERIOD_DAILY, PERIOD_WEEKLY, PERIOD_MONTHLY, PERIOD_YEARLY):
             start = self._period_starts.get(period, (electrical, thermal))
@@ -542,29 +652,53 @@ class COPDataCoordinator:
             therm_delta = thermal - start[1]
             period_data[period] = (elec_delta, therm_delta)
 
-        # Total
-        total_elec = electrical - (self._total_electrical_start or electrical)
-        total_therm = thermal - (self._total_thermal_start or thermal)
+        # Active period deltas back the COP calculations (frozen during idle).
+        active_period_data: dict[str, tuple[float, float]] = {}
+        for period in (PERIOD_DAILY, PERIOD_WEEKLY, PERIOD_MONTHLY, PERIOD_YEARLY):
+            start = self._active_period_starts.get(
+                period, (active_elec, active_therm)
+            )
+            active_period_data[period] = (
+                active_elec - start[0],
+                active_therm - start[1],
+            )
+
+        active_total_elec = active_elec - (
+            self._active_total_electrical_start
+            if self._active_total_electrical_start is not None
+            else active_elec
+        )
+        active_total_therm = active_therm - (
+            self._active_total_thermal_start
+            if self._active_total_thermal_start is not None
+            else active_therm
+        )
 
         price = self._get_electricity_price()
 
         self.data = {
-            # COP values
+            # COP values (computed from gated active energy)
             "cop_current": cop_current,
             "cop_daily": self._calculate_cop(
-                period_data[PERIOD_DAILY][1], period_data[PERIOD_DAILY][0]
+                active_period_data[PERIOD_DAILY][1],
+                active_period_data[PERIOD_DAILY][0],
             ),
             "cop_weekly": self._calculate_cop(
-                period_data[PERIOD_WEEKLY][1], period_data[PERIOD_WEEKLY][0]
+                active_period_data[PERIOD_WEEKLY][1],
+                active_period_data[PERIOD_WEEKLY][0],
             ),
             "cop_monthly": self._calculate_cop(
-                period_data[PERIOD_MONTHLY][1], period_data[PERIOD_MONTHLY][0]
+                active_period_data[PERIOD_MONTHLY][1],
+                active_period_data[PERIOD_MONTHLY][0],
             ),
             "cop_yearly": self._calculate_cop(
-                period_data[PERIOD_YEARLY][1], period_data[PERIOD_YEARLY][0]
+                active_period_data[PERIOD_YEARLY][1],
+                active_period_data[PERIOD_YEARLY][0],
             ),
-            "cop_total": self._calculate_cop(total_therm, total_elec),
-            # Daily energy
+            "cop_total": self._calculate_cop(
+                active_total_therm, active_total_elec
+            ),
+            # Daily energy (raw – includes standby)
             "electrical_energy_daily": round(period_data[PERIOD_DAILY][0], 3),
             "thermal_energy_daily": round(period_data[PERIOD_DAILY][1], 3),
             # Monthly energy
@@ -668,22 +802,34 @@ class COPDataCoordinator:
         """Handle daily reset at midnight."""
         electrical = self._get_current_electrical()
         thermal = self._get_current_thermal()
+        active_elec = self._active_cumulative_electrical
+        active_therm = self._active_cumulative_thermal
         local_now = dt_util.now()
 
         # Always reset daily
         self._period_starts[PERIOD_DAILY] = (electrical, thermal)
+        self._active_period_starts[PERIOD_DAILY] = (active_elec, active_therm)
 
         # Reset weekly on Monday
         if local_now.weekday() == 0:
             self._period_starts[PERIOD_WEEKLY] = (electrical, thermal)
+            self._active_period_starts[PERIOD_WEEKLY] = (
+                active_elec, active_therm
+            )
 
         # Reset monthly on the 1st
         if local_now.day == 1:
             self._period_starts[PERIOD_MONTHLY] = (electrical, thermal)
+            self._active_period_starts[PERIOD_MONTHLY] = (
+                active_elec, active_therm
+            )
 
             # Reset yearly on January 1st
             if local_now.month == 1:
                 self._period_starts[PERIOD_YEARLY] = (electrical, thermal)
+                self._active_period_starts[PERIOD_YEARLY] = (
+                    active_elec, active_therm
+                )
 
         # Mode-specific period resets
         if self._mode_enabled:
@@ -722,6 +868,21 @@ class COPDataCoordinator:
             },
             "last_electrical_power": self._last_electrical_power,
             "last_thermal_power": self._last_thermal_power,
+            # Active (gated) counters – power the long-term COP calculations.
+            "active_cumulative_electrical": self._active_cumulative_electrical,
+            "active_cumulative_thermal": self._active_cumulative_thermal,
+            "active_total_electrical_start": self._active_total_electrical_start,
+            "active_total_thermal_start": self._active_total_thermal_start,
+            "active_period_starts": {
+                k: list(v) for k, v in self._active_period_starts.items()
+            },
+            "prev_cumulative_electrical": self._prev_cumulative_electrical,
+            "prev_cumulative_thermal": self._prev_cumulative_thermal,
+            "prev_sample_time": (
+                self._prev_sample_time.isoformat()
+                if self._prev_sample_time is not None
+                else None
+            ),
         }
         if self._mode_enabled:
             data["mode_cumulative_electrical"] = self._mode_cumulative_electrical
@@ -732,8 +893,8 @@ class COPDataCoordinator:
                 mode: {k: list(v) for k, v in periods.items()}
                 for mode, periods in self._mode_period_starts.items()
             }
-            data["prev_cumulative_electrical"] = self._prev_cumulative_electrical
-            data["prev_cumulative_thermal"] = self._prev_cumulative_thermal
+            data["mode_active_baseline_elec"] = self._mode_active_baseline_elec
+            data["mode_active_baseline_therm"] = self._mode_active_baseline_therm
         await self._store.async_save(data)
 
     async def _async_restore_state(self) -> None:
@@ -758,6 +919,35 @@ class COPDataCoordinator:
         for k, v in period_starts.items():
             if isinstance(v, list) and len(v) == 2:
                 self._period_starts[k] = (v[0], v[1])
+
+        # Active (gated) counters
+        active_elec = data.get("active_cumulative_electrical")
+        if isinstance(active_elec, (int, float)):
+            self._active_cumulative_electrical = float(active_elec)
+        active_therm = data.get("active_cumulative_thermal")
+        if isinstance(active_therm, (int, float)):
+            self._active_cumulative_thermal = float(active_therm)
+
+        self._active_total_electrical_start = data.get(
+            "active_total_electrical_start"
+        )
+        self._active_total_thermal_start = data.get(
+            "active_total_thermal_start"
+        )
+
+        active_period_starts = data.get("active_period_starts", {})
+        for k, v in active_period_starts.items():
+            if isinstance(v, list) and len(v) == 2:
+                self._active_period_starts[k] = (v[0], v[1])
+
+        self._prev_cumulative_electrical = data.get("prev_cumulative_electrical")
+        self._prev_cumulative_thermal = data.get("prev_cumulative_thermal")
+        prev_time_iso = data.get("prev_sample_time")
+        if isinstance(prev_time_iso, str):
+            try:
+                self._prev_sample_time = datetime.fromisoformat(prev_time_iso)
+            except ValueError:
+                self._prev_sample_time = None
 
         # Restore mode-specific data
         if self._mode_enabled:
@@ -792,10 +982,12 @@ class COPDataCoordinator:
                         if isinstance(v, list) and len(v) == 2:
                             self._mode_period_starts[mode][k] = (v[0], v[1])
 
-            self._prev_cumulative_electrical = data.get(
-                "prev_cumulative_electrical"
-            )
-            self._prev_cumulative_thermal = data.get("prev_cumulative_thermal")
+            mode_baseline_elec = data.get("mode_active_baseline_elec")
+            if isinstance(mode_baseline_elec, (int, float)):
+                self._mode_active_baseline_elec = float(mode_baseline_elec)
+            mode_baseline_therm = data.get("mode_active_baseline_therm")
+            if isinstance(mode_baseline_therm, (int, float)):
+                self._mode_active_baseline_therm = float(mode_baseline_therm)
 
         # Mark as having real data if we successfully restored values
         if self._cumulative_electrical is not None and self._cumulative_thermal is not None:
