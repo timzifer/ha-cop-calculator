@@ -47,6 +47,13 @@ PRICE_TYPE_SENSOR = "sensor"
 DEFAULT_NAME = "Heat Pump"
 DEFAULT_AVERAGING_PERIOD = 15  # minutes
 
+# Operation gating: only count energy toward COP while the heat pump actually runs.
+# Below this average electrical power the device is treated as standby/idle, so
+# long-term COPs do not drift toward 0 due to standby draw.
+IDLE_POWER_THRESHOLD_KW = 0.05  # 50 W
+# Sample intervals larger than this are treated as a data gap and discarded.
+MAX_SAMPLE_GAP_S = 3600
+
 # Mode identifiers
 MODE_HEATING = "heating"
 MODE_DHW = "dhw"
